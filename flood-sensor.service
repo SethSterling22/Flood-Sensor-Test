@@ -5,14 +5,14 @@ Wants=network.target
 
 [Service]
 Type=forking
-User=pi
-Group=pi
+User=change-me
+Group=change-me
 WorkingDirectory=/home/wmobley/Desktop/Flood-Sensor
 ExecStart=/home/wmobley/Desktop/Flood-Sensor/run.sh start
 ExecStop=/home/wmobley/Desktop/Flood-Sensor/run.sh stop
 ExecReload=/home/wmobley/Desktop/Flood-Sensor/run.sh restart
 PIDFile=/home/wmobley/Desktop/Flood-Sensor/flood_sensor.pid
-Restart=always
+Restart=no
 RestartSec=10
 StandardOutput=journal
 StandardError=journal
