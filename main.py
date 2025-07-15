@@ -42,9 +42,9 @@ if __name__ == '__main__':
             time.sleep(0.5)
         else:
             streamflow_data = get_streamflow_data()
-            if streamflow > float(streamflow_data['value'])/35.315:
+            if streamflow >= float(streamflow_data['value'])/35.315:
                 logger.debug("Streamflow below threshold, waiting...")
-                time.sleep(360)
+                time.sleep(3600)
                 continue
             else:
                 streamflow = float(streamflow_data['value'])/35.315
@@ -96,4 +96,4 @@ if __name__ == '__main__':
                             logger.error("Failed to submit subtask")
                     else:
                         logger.error("Failed to set model parameters")
-                time.sleep(360)
+                time.sleep(3600)

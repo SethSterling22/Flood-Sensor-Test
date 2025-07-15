@@ -1,0 +1,21 @@
+[Unit]
+Description=Flood Sensor Monitoring Service
+After=network.target
+Wants=network.target
+
+[Service]
+Type=forking
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/Flood-Sensor
+ExecStart=/home/pi/Flood-Sensor/run.sh start
+ExecStop=/home/pi/Flood-Sensor/run.sh stop
+ExecReload=/home/pi/Flood-Sensor/run.sh restart
+PIDFile=/home/pi/Flood-Sensor/flood_sensor.pid
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
