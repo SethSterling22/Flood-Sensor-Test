@@ -40,6 +40,7 @@ if __name__ == '__main__':
         sensor_state = GPIO.input(sensor_pin)
         if sensor_state == GPIO.HIGH:
             time.sleep(0.5)
+            streamflow = 0
         else:
             streamflow_data = get_streamflow_data()
             if streamflow >= float(streamflow_data['value'])/35.315:
