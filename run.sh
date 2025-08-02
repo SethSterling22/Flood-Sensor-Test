@@ -1,128 +1,114 @@
 #!/bin/bash
 
-# Flood Sensor Runner Script
-# This script runs the main.py flood sensor application
+# ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+# ┃  Flood Sensor Daemon Script                ┃
+# ┃  Runs main.py, raingauge.py, and           ┃
+# ┃     ┃
+# ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
-# Get the directory where this script is located
+# Set script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Change to the script directory
-cd "$SCRIPT_DIR"
+# PID files
+PID_MAIN="$SCRIPT_DIR/flood_sensor.pid"
+PID_RAINGAUGE="$SCRIPT_DIR/raingauge.pid"
 
-# Check if main.py exists
-if [ ! -f "main.py" ]; then
-    echo "Error: main.py not found in $SCRIPT_DIR"
+# Log files
+LOG_MAIN="$SCRIPT_DIR/flood_sensor.log"
+LOG_RAINGAUGE="$SCRIPT_DIR/rain_gauge.log"
+# Check required files exist
+for file in main.py raingauge.py .env; do
+    if [ ! -f "$SCRIPT_DIR/$file" ]; then
+        echo "❌ Error: $file not found in $SCRIPT_DIR"
+        exit 1
+    fi
+done
+
+# Activate virtual environment
+if [ -f "$SCRIPT_DIR/venv/bin/activate" ]; then
+    source "$SCRIPT_DIR/venv/bin/activate"
+else
+    echo "❌ Error: Virtual environment not found at venv/"
     exit 1
 fi
 
-# Check if .env file exists
-if [ ! -f ".env" ]; then
-    echo "Error: .env file not found in $SCRIPT_DIR"
-    exit 1
-fi
-
-# Check if Python is available
+# Check Python and dependencies
 if ! command -v python3 &> /dev/null; then
-    echo "Error: python3 is not installed or not in PATH"
+    echo "❌ Error: python3 is not installed or not in PATH"
     exit 1
 fi
 
-# Check if required Python packages are installed
-echo "Checking Python dependencies..."
+echo "🔍 Checking Python dependencies..."
 python3 -c "import tapipy, dotenv, requests, RPi.GPIO" 2>/dev/null
 if [ $? -ne 0 ]; then
-    echo "Error: Required Python packages are missing."
-    echo "Please install them with: pip3 install tapipy python-dotenv requests RPi.GPIO"
+    echo "❌ Error: Required Python packages are missing."
+    echo "📦 Install with: pip3 install tapipy python-dotenv requests RPi.GPIO"
     exit 1
 fi
 
-# Set up logging
-LOG_FILE="$SCRIPT_DIR/flood_sensor.log"
-echo "Starting Flood Sensor at $(date)" | tee -a "$LOG_FILE"
-
-# Run the main Python script
-echo "Running flood sensor application..."
-python3 main.py 2>&1 #!/bin/bash
-
-# Flood Sensor Daemon Runner Script
-# This script can run the flood sensor as a background service
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PID_FILE="$SCRIPT_DIR/flood_sensor.pid"
-LOG_FILE="$SCRIPT_DIR/flood_sensor.log"
+check_pid() {
+    [ -f "$1" ] && ps -p "$(cat "$1")" > /dev/null 2>&1
+}
 
 start_sensor() {
-    if [ -f "$PID_FILE" ]; then
-        PID=$(cat "$PID_FILE")
-        if ps -p "$PID" > /dev/null 2>&1; then
-            echo "Flood sensor is already running (PID: $PID)"
-            return 1
-        else
-            echo "Removing stale PID file"
-            rm -f "$PID_FILE"
-        fi
+    echo "🚀 Starting flood sensor components..."
+
+    if check_pid "$PID_MAIN" || check_pid "$PID_RAINGAUGE" || check_pid "$PID_UPLOADER"; then
+        echo "⚠️ One or more components are already running."
+        return 1
     fi
-    
-    echo "Starting flood sensor daemon..."
-    cd "$SCRIPT_DIR"
-    
-    # Start the Python script in background
-    nohup python3 main.py >> "$LOG_FILE" 2>&1 &
-    PID=$!
-    
-    # Save PID to file
-    echo $PID > "$PID_FILE"
-    echo "Flood sensor started with PID: $PID"
-    echo "Logs are being written to: $LOG_FILE"
+
+    nohup python3 "$SCRIPT_DIR/main.py" >> "$LOG_MAIN" 2>&1 &
+    echo $! > "$PID_MAIN"
+    echo $1
+    nohup sudo python3 "$SCRIPT_DIR/raingauge.py" >> "$LOG_RAINGAUGE" 2>&1 &
+    echo $! > "$PID_RAINGAUGE"
+
+
+
+    echo "✅ Started all components."
 }
 
 stop_sensor() {
-    if [ ! -f "$PID_FILE" ]; then
-        echo "Flood sensor is not running (no PID file found)"
-        return 1
-    fi
-    
-    PID=$(cat "$PID_FILE")
-    if ps -p "$PID" > /dev/null 2>&1; then
-        echo "Stopping flood sensor (PID: $PID)..."
-        kill "$PID"
-        
-        # Wait for process to stop
-        for i in {1..10}; do
-            if ! ps -p "$PID" > /dev/null 2>&1; then
-                break
+    echo "🛑 Stopping flood sensor components..."
+
+    for pid_file in "$PID_MAIN" "$PID_RAINGAUGE" "$PID_UPLOADER"; do
+        if [ -f "$pid_file" ]; then
+            PID=$(cat "$pid_file")
+            if ps -p "$PID" > /dev/null 2>&1; then
+                sudo skill "$PID"
+                sleep 2
+                if ps -p "$PID" > /dev/null 2>&1; then
+                    echo "⛔ Force killing PID $PID"
+                    kill -9 "$PID"
+                fi
+            else
+                echo "⚠️ Process $PID not running"
             fi
-            sleep 1
-        done
-        
-        # Force kill if still running
-        if ps -p "$PID" > /dev/null 2>&1; then
-            echo "Force killing flood sensor..."
-            kill -9 "$PID"
+            rm -f "$pid_file"
+        else
+            echo "⚠️ PID file $pid_file not found"
         fi
-        
-        rm -f "$PID_FILE"
-        echo "Flood sensor stopped"
-    else
-        echo "Flood sensor is not running (PID $PID not found)"
-        rm -f "$PID_FILE"
-    fi
+    done
+
+    echo "🧼 All stopped."
 }
 
 status_sensor() {
-    if [ -f "$PID_FILE" ]; then
-        PID=$(cat "$PID_FILE")
-        if ps -p "$PID" > /dev/null 2>&1; then
-            echo "Flood sensor is running (PID: $PID)"
-            return 0
+    echo "📊 Status report:"
+    for pid_file in "$PID_MAIN" "$PID_RAINGAUGE" "$PID_UPLOADER"; do
+        SCRIPT_NAME=$(basename "$pid_file" .pid)
+        if [ -f "$pid_file" ]; then
+            PID=$(cat "$pid_file")
+            if ps -p "$PID" > /dev/null 2>&1; then
+                echo "✅ $SCRIPT_NAME.py is running (PID: $PID)"
+            else
+                echo "❌ $SCRIPT_NAME.py is NOT running but PID file exists"
+            fi
         else
-            echo "Flood sensor is not running (stale PID file)"
-            return 1
+            echo "❌ $SCRIPT_NAME.py PID file missing"
         fi
-    else
-        echo "Flood sensor is not running"
-        return 1
-    fi
+    done
 }
 
 case "$1" in
@@ -144,22 +130,10 @@ case "$1" in
         echo "Usage: $0 {start|stop|restart|status}"
         echo ""
         echo "Commands:"
-        echo "  start   - Start the flood sensor daemon"
-        echo "  stop    - Stop the flood sensor daemon"
-        echo "  restart - Restart the flood sensor daemon"
-        echo "  status  - Check if the flood sensor is running"
+        echo "  start   - Start all flood sensor components"
+        echo "  stop    - Stop all flood sensor components"
+        echo "  restart - Restart all flood sensor components"
+        echo "  status  - Show running status"
         exit 1
         ;;
 esac
-| tee -a "$LOG_FILE"
-
-# Capture exit code
-EXIT_CODE=$?
-
-if [ $EXIT_CODE -eq 0 ]; then
-    echo "Flood sensor application completed successfully" | tee -a "$LOG_FILE"
-else
-    echo "Flood sensor application exited with error code: $EXIT_CODE" | tee -a "$LOG_FILE"
-fi
-
-exit $EXIT_CODE

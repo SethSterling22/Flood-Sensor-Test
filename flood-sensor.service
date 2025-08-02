@@ -1,21 +1,14 @@
 [Unit]
 Description=Flood Sensor Monitoring Service
 After=network.target
-Wants=network.target
 
 [Service]
-Type=forking
-User=change-me
-Group=change-me
-WorkingDirectory=/home/wmobley/Desktop/Flood-Sensor
+Type=oneshot
 ExecStart=/home/wmobley/Desktop/Flood-Sensor/run.sh start
 ExecStop=/home/wmobley/Desktop/Flood-Sensor/run.sh stop
-ExecReload=/home/wmobley/Desktop/Flood-Sensor/run.sh restart
-PIDFile=/home/wmobley/Desktop/Flood-Sensor/flood_sensor.pid
-Restart=no
-RestartSec=10
-StandardOutput=journal
-StandardError=journal
+RemainAfterExit=true
+StandardOutput=append:/home/wmobley/Desktop/Flood-Sensor/systemd-flood.log
+StandardError=append:/home/wmobley/Desktop/Flood-Sensor/systemd-flood.log
 
 [Install]
 WantedBy=multi-user.target
