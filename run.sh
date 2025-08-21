@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-# ┃  Flood Sensor Daemon Script                ┃
-# ┃  Runs main.py, raingauge.py, and           ┃
-# ┃     ┃
+# ┃  Flood Sensor Daemon Script                 ┃
+# ┃  Runs main.py, raingauge.py, and            ┃
+# ┃                                             ┃
 # ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
 # Set script directory
@@ -16,6 +16,9 @@ PID_RAINGAUGE="$SCRIPT_DIR/raingauge.pid"
 # Log files
 LOG_MAIN="$SCRIPT_DIR/flood_sensor.log"
 LOG_RAINGAUGE="$SCRIPT_DIR/rain_gauge.log"
+
+
+
 # Check required files exist
 for file in main.py raingauge.py .env; do
     if [ ! -f "$SCRIPT_DIR/$file" ]; then
