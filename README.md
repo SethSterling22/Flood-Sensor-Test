@@ -36,6 +36,8 @@ This application monitors a physical flood sensor connected to a Raspberry Pi an
 
 2. **Install Python dependencies:**
    ```bash
+   python -m venv venv
+   source venv/bin/activate
    pip3 install -r requirements.txt
    ```
 

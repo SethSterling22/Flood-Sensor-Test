@@ -1,5 +1,6 @@
-requests
-tapipy
-dotenv
+#requests>=2.31.0
+#dotenv
+python-dotenv 
 RPi.GPIO; platform_machine=="armv7l" or platform_machine=="aarch64"
 upstream-sdk
+tapipy>=1.9.1
