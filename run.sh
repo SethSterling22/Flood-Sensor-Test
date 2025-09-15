@@ -5,6 +5,7 @@
 # ┃  Runs main.py, raingauge.py, and            ┃
 # ┃                                             ┃
 # ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+# Should use UTF-8 for the icons and special characters
 
 # Set script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
