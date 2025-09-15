@@ -32,7 +32,7 @@ with open(PID_FILE, "w") as f:
     f.write(str(os.getpid()))
 
 # === SENSOR SETUP ===
-rain_sensor = Button(27)
+rain_sensor = Button(6) # Previous 27
 
 # Globals to track counts and timing
 count = 0
@@ -83,13 +83,19 @@ def main():
 
     logger.info("🌧️ Starting rain gauge monitor...")
     init_sensor_file_if_needed()    
-    rain_sensor.when_pressed = bucket_tipped
+    
+    # Call to the RainFall Sensor Function
+    #rain_sensor.when_pressed = bucket_tipped
 
     try:
         while True:
             now = datetime.now()
             hour_str = now.strftime('%Y%m%d_%H')
             current_minute = now.replace(second=0, microsecond=0)
+
+            # Call to the RainFall Sensor Function
+            rain_sensor.when_pressed = bucket_tipped
+        
 
             # Rotate measurement file on hour change
             if current_hour_str != hour_str:
