@@ -396,8 +396,10 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
-.env
 
+# Ignore the .env but send the public variables 
+.env
+!.env.public
 
 # Virtual Environments
 venv/

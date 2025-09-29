@@ -1,5 +1,14 @@
 import requests
-base_url = "https://ensemble-manager.mint.tacc.utexas.edu/v1"
+from dotenv import load_dotenv
+
+
+# === ENVIRONMENT  VARIABLES ===
+load_dotenv(".env.public")  # Public env variables
+
+
+# === CONFIGURATION ===
+base_url = os.getenv('MINT_URL')
+
 
 def get_streamflow_data():
     """Fetch streamflow data from USGS API and extract the streamflow value."""
@@ -17,14 +26,18 @@ def get_streamflow_data():
         # Find the streamflow data (variable code 00060)
         for series in time_series:
             variable = series['variable']
+
+            ### REVISAR EL JSON, POR QUE SE FILTRA Y QUE DEVUELVE Y SI PUEDE TRAERSE YA FILTRADO !!!
+
             if variable['variableCode'][0]['value'] == '00060':  # Streamflow code
-                # Extract the latest value
+                # Extract the latest value VERIFICAR QUE EXISTA INFORMACION EN ESE CAMPO Y COLOCAR VALOR POR DEFECTO (TERNARIOS) !!!
                 latest_value = series['values'][0]['value'][0]['value']
                 date_time = series['values'][0]['value'][0]['dateTime']
                 site_name = series['sourceInfo']['siteName']
                 variable_name = variable['variableName']
                 unit = variable['unit']['unitCode']
                 
+                # Return Streamflow data
                 return {
                     'site_name': site_name,
                     'variable_name': variable_name,
@@ -44,10 +57,9 @@ def get_streamflow_data():
         return None
 
 
-
 def set_model_parameters(problem_statement_id, task_id, subtask_id, model_config, auth_token=None):
     """Set parameters for a specific subtask/model configuration."""
-    base_url = "https://ensemble-manager.mint.tacc.utexas.edu/v1"
+    # base_url = "https://ensemble-manager.mint.tacc.utexas.edu/v1"
     endpoint = f"{base_url}/problemStatements/{problem_statement_id}/tasks/{task_id}/subtasks/{subtask_id}/parameters"
     
     headers = {
@@ -79,7 +91,7 @@ def set_model_parameters(problem_statement_id, task_id, subtask_id, model_config
 
 def submit_subtask(problem_statement_id, task_id, subtask_id, model_config, auth_token=None):
     """Submit a subtask for execution."""
-    base_url = "https://ensemble-manager.mint.tacc.utexas.edu/v1"
+    # base_url = "https://ensemble-manager.mint.tacc.utexas.edu/v1"
     endpoint = f"{base_url}/problemStatements/{problem_statement_id}/tasks/{task_id}/subtasks/{subtask_id}/submit"
     
     headers = {

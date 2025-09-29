@@ -5,22 +5,27 @@ from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from upstream.client import UpstreamClient
 
-# === ENVIRONMENT ===
-load_dotenv()
-USERNAME = os.getenv("userid")
-PASSWORD = os.getenv("password")
+# === ENVIRONMENT  VARIABLES ===
+load_dotenv(".env.public")  # Public env variables
+load_dotenv(".env")         # Tapis credentials
 
 # === CONFIGURATION ===
-LOG_DIR = "/home/wmobley/Desktop/Flood-Sensor/rain_logs"  # absolute path for safety
+LOG_DIR = "./Logs/rain_logs"  # absolute path for safety
+
 SENSOR_FILE = os.path.join(LOG_DIR, "sensors.csv")
-BASE_URL = "https://upstream-dso.tacc.utexas.edu"
-CKAN_URL = "https://ckan.tacc.utexas.edu"
-CKAN_ORG = "planet-texas-2050"
-CAMPAIGN_ID = 18
-STATION_ID = 44
+USERNAME = os.getenv("userid")
+PASSWORD = os.getenv("password")
+BASE_URL = os.getenv('BASE_URL')
+CKAN_URL = os.getenv('CKAN_URL')
+CKAN_ORG = os.getenv('CKAN_ORG')
+CAMPAIGN_ID = os.getenv('CAMPAIGN_ID')
+STATION_ID = os.getenv('STATION_ID')
+
 
 # === LOGGING ===
-PID_FILE = "/home/wmobley/Desktop/Flood-Sensor/rain_gauge_uploader.pid"
+PID_FILE = "./PID/rain_gauge_uploader.pid"
+
+
 with open(PID_FILE, "w") as f:
     f.write(str(os.getpid()))
 

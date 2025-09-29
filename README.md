@@ -9,6 +9,7 @@ This application monitors a physical flood sensor connected to a Raspberry Pi an
 ## Features
 
 - **Real-time Flood Detection**: Monitors GPIO pin for physical flood sensor input
+- **Real-time Rainfall Measurement**: Calculates the volume of rainfall in a time interval
 - **USGS Integration**: Fetches live streamflow data from USGS water services
 - **MINT API Integration**: Automatically configures and submits flood models
 - **Continuous Monitoring**: Runs as a daemon with configurable check intervals
@@ -19,6 +20,7 @@ This application monitors a physical flood sensor connected to a Raspberry Pi an
 
 - Raspberry Pi (any model with GPIO support)
 - Flood sensor connected to GPIO pin 13
+- Rainfall Sensor connected to GPIO pin 6
 - Internet connection for API access
 
 ## Software Requirements
@@ -66,10 +68,14 @@ Create a `.env` file with the following variables:
 
 ### Hardware Configuration
 
-- **Sensor Pin**: GPIO pin 13 (BCM mode)
+- **Liquid Sensor Pin**: GPIO pin 13 (BCM mode)
 - **Sensor Logic**: 
   - HIGH = No flood detected
   - LOW = Potential flood condition
+
+- **Rainfall Sensor Pin**: GPIO pin 6
+- **Sensor Logic**:
+  - Work like a button: give a signal when is pressed 
 
 ### Model Configuration
 
@@ -82,6 +88,8 @@ The application is pre-configured with:
 ## Usage
 
 ### Running the Application
+
+HAY QUE REVISARLO !!!
 
 #### Method 1: Direct Execution
 ```bash
@@ -150,7 +158,7 @@ Flood-Sensor/
 ├── .env                 # Environment variables (create this)
 ├── flood_sensor.log     # Application logs (auto-generated)
 ├── flood_sensor.pid     # Process ID file (auto-generated)
-└── README.md           # This file
+└── README.md            # This file
 ```
 
 ## API Integration
@@ -193,9 +201,10 @@ tail -f flood_sensor.log
 
 Test the sensor without hardware:
 ```python
-# Comment out GPIO lines for testing
-# GPIO.setmode(GPIO.BCM)
-# GPIO.setup(sensor_pin, GPIO.IN)
+# Comment out GPIO lines for testing:
+
+   # GPIO.setmode(GPIO.BCM)
+   # GPIO.setup(sensor_pin, GPIO.IN)
 ```
 
 ## Contributing
@@ -218,3 +227,9 @@ For issues and questions:
 - USGS for providing real-time water data
 - MINT platform for flood modeling capabilities
 - Tapis API for authentication services
+
+## Extra Information: 
+
+- [Liquid Sensor](https://www.mouser.com/datasheet/2/737/3397_datasheet_actual-1228633.pdf?srsltid=AfmBOoomA1sX4nExoP1tFe5z0GlJ6zAp_ayNQhGoQWl9QLpZI74N1I5b "Liquid Sensor Link")
+- [Rainfall Sensor:](https://wiki.dfrobot.com/SKU_SEN0575_Gravity_Rainfall_Sensor "Rainfall Sensor Link")
+

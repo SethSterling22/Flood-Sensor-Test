@@ -11,22 +11,22 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # PID files
-PID_MAIN="$SCRIPT_DIR/flood_sensor.pid"
-PID_RAINGAUGE="$SCRIPT_DIR/raingauge.pid"
+PID_MAIN="$SCRIPT_DIR/PID/flood_sensor.pid"
+PID_RAINGAUGE="$SCRIPT_DIR/PID/raingauge.pid"
+PID_UPLOADER="$SCRIPT_DIR/PID/rain_gauge_uploader.pid"
 
 # Log files
-LOG_MAIN="$SCRIPT_DIR/flood_sensor.log"
-LOG_RAINGAUGE="$SCRIPT_DIR/rain_gauge.log"
-
-
+LOG_MAIN="$SCRIPT_DIR/Logs/flood_sensor.log"
+LOG_RAINGAUGE="$SCRIPT_DIR/Logs/rain_gauge.log"
 
 # Check required files exist
-for file in main.py raingauge.py .env; do
+for file in main.py raingauge.py .env .env.public; do
     if [ ! -f "$SCRIPT_DIR/$file" ]; then
         echo "❌ Error: $file not found in $SCRIPT_DIR"
         exit 1
     fi
 done
+
 
 # Activate virtual environment
 if [ -f "$SCRIPT_DIR/venv/bin/activate" ]; then
@@ -36,23 +36,27 @@ else
     exit 1
 fi
 
+
 # Check Python and dependencies
 if ! command -v python3 &> /dev/null; then
     echo "❌ Error: python3 is not installed or not in PATH"
     exit 1
 fi
 
+
 echo "🔍 Checking Python dependencies..."
 python3 -c "import tapipy, dotenv, requests, RPi.GPIO" 2>/dev/null
 if [ $? -ne 0 ]; then
     echo "❌ Error: Required Python packages are missing."
     echo "📦 Install with: pip3 install tapipy python-dotenv requests RPi.GPIO"
+    echo "      Or with: pip3 install -r requirements.txt"
     exit 1
 fi
 
 check_pid() {
     [ -f "$1" ] && ps -p "$(cat "$1")" > /dev/null 2>&1
 }
+
 
 start_sensor() {
     echo "🚀 Starting flood sensor components..."
@@ -68,10 +72,9 @@ start_sensor() {
     nohup sudo python3 "$SCRIPT_DIR/raingauge.py" >> "$LOG_RAINGAUGE" 2>&1 &
     echo $! > "$PID_RAINGAUGE"
 
-
-
     echo "✅ Started all components."
 }
+
 
 stop_sensor() {
     echo "🛑 Stopping flood sensor components..."
@@ -98,6 +101,7 @@ stop_sensor() {
     echo "🧼 All stopped."
 }
 
+
 status_sensor() {
     echo "📊 Status report:"
     for pid_file in "$PID_MAIN" "$PID_RAINGAUGE" "$PID_UPLOADER"; do
@@ -115,6 +119,7 @@ status_sensor() {
     done
 }
 
+
 case "$1" in
     start)
         start_sensor
@@ -131,7 +136,7 @@ case "$1" in
         status_sensor
         ;;
     *)
-        echo "Usage: $0 {start|stop|restart|status}"
+        echo "Usage: $0 {start | stop | restart | status}"
         echo ""
         echo "Commands:"
         echo "  start   - Start all flood sensor components"

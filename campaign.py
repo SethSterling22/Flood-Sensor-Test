@@ -3,14 +3,17 @@ from upstream_api_client.models import CampaignsIn, StationCreate
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import os
-load_dotenv()
+
+# === ENVIRONMENT  VARIABLES ===
+load_dotenv(".env.public")  # Public env variables
+load_dotenv(".env")         # Tapis credentials
 
 # Initialize client with CKAN integration
 client = UpstreamClient(
     username=os.getenv('userid'),
     password=os.getenv('password'),
-    base_url="https://upstream-dso.tacc.utexas.edu",
-    ckan_url="https://ckan.tacc.utexas.edu",
+    base_url=os.getenv('BASE_URL'),
+    ckan_url=os.getenv('CKAN_URL'),
     ckan_organization="dso-internal"
 )
 
