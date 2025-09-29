@@ -12,7 +12,7 @@ sensor_pin = 13
 GPIO.setup(sensor_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
 try:
-    print("Testing liquid sensor. Press Ctrl+C to exit.")
+    print("Testing Liquid Sensor. Press Ctrl+C to exit.")
     
     while True:
         # Read the pin state.
@@ -26,7 +26,7 @@ try:
         time.sleep(0.5)
 
 except KeyboardInterrupt:
-    print("Exiting program.")
+    print("Exiting program...")
 
 finally:
     # Clean up GPIO settings on exit

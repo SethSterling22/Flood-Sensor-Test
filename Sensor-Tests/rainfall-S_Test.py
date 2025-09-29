@@ -1,4 +1,5 @@
 from gpiozero import Button
+import RPi.GPIO as GPIO
 
 # GPIO number of the Rainfall Sensor
 rain_sensor = Button(6)
@@ -11,14 +12,14 @@ def bucket_tipped():
     print(count)
 
 try:
-    print("Testing liquid sensor. Press Ctrl+C to exit.")
+    print("Testing Rainfall Sensor. Press Ctrl+C to exit.")
     
     while True:
         rain_sensor.when_pressed = bucket_tipped
 
 except KeyboardInterrupt:
-    print("Exiting program.")
+    print("Exiting program...")
 
 finally:
-    # Clean up GPIO settings on exit
+    # Clean up GPIO settings on exits
     GPIO.cleanup()
