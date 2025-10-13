@@ -166,7 +166,7 @@ start_sensor() {
 stop_sensor() {
     echo "🛑 Stopping flood sensor components..."
 
-    for pid_file in "$PID_MAIN" "$PID_RECEIVER"; dodecode
+    for pid_file in "$PID_MAIN" "$PID_RECEIVER"; do
         if [ -f "$pid_file" ]; then
             PID=$(cat "$pid_file")
             if ps -p "$PID" > /dev/null 2>&1; then
