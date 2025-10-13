@@ -39,6 +39,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
 def init_sensor_file():
     if not os.path.exists(SENSOR_FILE):
         try:
@@ -52,6 +53,7 @@ def init_sensor_file():
     else:
         logger.info(f"Sensor file exists at {SENSOR_FILE}")
 
+
 def get_previous_hour_file():
     """Return path for previous hour's CSV file."""
     now = datetime.now()
@@ -59,11 +61,13 @@ def get_previous_hour_file():
     filename = os.path.join(LOG_DIR, f"rain_{prev_hour.strftime('%Y%m%d_%H')}.csv")
     return  filename
 
+
 def is_time_to_upload():
     """Check if current time is between HH:05:00 and HH:05:59 UTC."""
     now = datetime.utcnow()
     # return now.minute == 5
     return True
+
 
 def submit_file_to_upstream(file_path):
     logger.info(f"🚀 Uploading {os.path.basename(file_path)} to Upstream...")
@@ -91,6 +95,7 @@ def submit_file_to_upstream(file_path):
     except Exception as e:
         logger.error(f"❌ Upload failed for {file_path}: {e}")
         return False
+
 
 def main():
     logger.info("📡 Starting rain gauge uploader...")

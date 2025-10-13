@@ -398,8 +398,8 @@ FodyWeavers.xsd
 *.sln.iml
 
 # Ignore the .env but send the public variables 
-.env
-!.env.public
+./Env/.env
+!./Env/.env.public
 
 # Virtual Environments
 venv/

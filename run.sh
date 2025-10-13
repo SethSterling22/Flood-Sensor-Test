@@ -2,8 +2,8 @@
 
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 # ┃  Flood Sensor Daemon Script                 ┃
-# ┃  Runs main.py, raingauge.py, and            ┃
-# ┃                                             ┃
+# ┃  Runs main.py, rain_gauge.py,               ┃
+# ┃  flood_sensor and metrics_receiver.py       ┃
 # ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 # Should use UTF-8 for the icons and special characters
 
@@ -12,15 +12,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # PID files
 PID_MAIN="$SCRIPT_DIR/PID/flood_sensor.pid"
-PID_RAINGAUGE="$SCRIPT_DIR/PID/raingauge.pid"
-PID_UPLOADER="$SCRIPT_DIR/PID/rain_gauge_uploader.pid"
+# PID_RAINGAUGE="$SCRIPT_DIR/PID/rain_gauge.pid"
+PID_RECEIVER="$SCRIPT_DIR/PID/metrics_receiver.pid" # The receiver will log what it sends
 
 # Log files
 LOG_MAIN="$SCRIPT_DIR/Logs/flood_sensor.log"
 LOG_RAINGAUGE="$SCRIPT_DIR/Logs/rain_gauge.log"
+LOG_RAINGAUGE="$SCRIPT_DIR/Logs/rain_gauge.log"
 
-# Check required files exist
-for file in main.py raingauge.py .env .env.public; do
+# === Check required files exist ===
+for file in main.py rain_gauge.py flood_sensor.py metrics_receiver.py Env/.env Env/.env.public Env/.env.config; do
     if [ ! -f "$SCRIPT_DIR/$file" ]; then
         echo "❌ Error: $file not found in $SCRIPT_DIR"
         exit 1
@@ -28,62 +29,147 @@ for file in main.py raingauge.py .env .env.public; do
 done
 
 
-# Activate virtual environment
-if [ -f "$SCRIPT_DIR/venv/bin/activate" ]; then
-    source "$SCRIPT_DIR/venv/bin/activate"
-else
-    echo "❌ Error: Virtual environment not found at venv/"
-    exit 1
-fi
+# === Activate virtual environment ===
+# if [ -f "$SCRIPT_DIR/venv/bin/activate" ]; then
+#     source "$SCRIPT_DIR/venv/bin/activate"
+# else
+#     echo "❌ Error: Virtual environment not found at venv/"
+#     exit 1
+# fi
 
 
-# Check Python and dependencies
-if ! command -v python3 &> /dev/null; then
-    echo "❌ Error: python3 is not installed or not in PATH"
-    exit 1
-fi
+# # === Check Python and dependencies ===
+# if ! command -v python3 &> /dev/null; then
+#     echo "❌ Error: python3 is not installed or not in PATH"
+#     exit 1
+# fi
 
+# echo "🔍 Checking Python dependencies..."
+# python3 -c "import tapipy, dotenv, requests, RPi.GPIO" 2>/dev/null
+# if [ $? -ne 0 ]; then
+#     echo "❌ Error: Required Python packages are missing."
+#     echo "📦 Install with: pip3 install tapipy python-dotenv requests RPi.GPIO"
+#     echo "      Or with: pip3 install -r requirements.txt"
+#     exit 1
+# fi
 
-echo "🔍 Checking Python dependencies..."
-python3 -c "import tapipy, dotenv, requests, RPi.GPIO" 2>/dev/null
-if [ $? -ne 0 ]; then
-    echo "❌ Error: Required Python packages are missing."
-    echo "📦 Install with: pip3 install tapipy python-dotenv requests RPi.GPIO"
-    echo "      Or with: pip3 install -r requirements.txt"
-    exit 1
-fi
-
+# === Check if the Process is running in background ===
 check_pid() {
     [ -f "$1" ] && ps -p "$(cat "$1")" > /dev/null 2>&1
 }
 
 
-start_sensor() {
-    echo "🚀 Starting flood sensor components..."
 
-    if check_pid "$PID_MAIN" || check_pid "$PID_RAINGAUGE" || check_pid "$PID_UPLOADER"; then
-        echo "⚠️ One or more components are already running."
-        return 1
+
+
+start_component() {
+    local script_name="$1"
+    local pid_file="$2"
+    local log_file="$3"
+    local use_sudo="$4"
+
+    if check_pid "$pid_file"; then
+        echo "⚠️ Component $script_name is already running."
+        return 0
     fi
 
-    nohup python3 "$SCRIPT_DIR/main.py" >> "$LOG_MAIN" 2>&1 &
-    echo $! > "$PID_MAIN"
-    echo $1
-    nohup sudo python3 "$SCRIPT_DIR/raingauge.py" >> "$LOG_RAINGAUGE" 2>&1 &
-    echo $! > "$PID_RAINGAUGE"
-
-    echo "✅ Started all components."
+    echo -n "🚀 Starting $script_name... "
+    if [ "$use_sudo" = "true" ]; then
+        nohup sudo python3 "$SCRIPT_DIR/$script_name" >> "$log_file" 2>&1 &
+    else
+        nohup python3 "$SCRIPT_DIR/$script_name" >> "$log_file" 2>&1 &
+    fi
+    echo $! > "$pid_file"
+    echo "Done (PID: $(cat "$pid_file"))."
 }
 
+
+
+start_sensor() {
+    echo "🚀 Starting flood sensor components..."
+    local mode="$1" # 'Server', 'Node', 'ExitNode'
+    
+    # Check if any component is already running
+    case "$mode" in
+        Server)
+            echo "⚙️ Mode: Server, starting metrics_receiver.py ...)"
+            start_component "metrics_receiver.py" "$PID_RECEIVER" "$LOG_RECEIVER" "false"
+            ;;
+        Node)
+            echo "⚙️ Mode: Node starting main.py ..."
+            start_component "main.py" "$PID_MAIN" "$LOG_MAIN" "false"
+            ;;
+        ExitNode)
+            echo "⚙️ Mode: ExitNode starting main.py and metrics_receiver.py ..."
+            start_component "main.py ExitNode" "$PID_MAIN" "$LOG_MAIN" "false"
+            start_component "metrics_receiver.py" "$PID_RECEIVER" "$LOG_RECEIVER" "false"
+            ;;
+        *)
+            echo "⛔ ERROR: Invalid mode for start command: '$mode'"
+            return 1
+            ;;
+    esac
+
+    echo "✅ Components for mode '$mode' started."
+}
+
+
+# start_sensor() {
+#     echo "🚀 Starting flood sensor components..."
+
+#     # if check_pid "$PID_MAIN" || check_pid "$PID_RAINGAUGE" || check_pid "$PID_RECEIVER"; then
+#     if check_pid "$PID_MAIN" || check_pid "$PID_RECEIVER"; then
+#         echo "⚠️ One or more components are already running."
+#         return 1
+#     fi
+
+
+#     # If it's executed as "ExitNode" it will pass "Local" as parameter
+#     nohup python3 "$SCRIPT_DIR/main.py" >> "$LOG_MAIN" 2>&1 &
+#     echo $! > "$PID_MAIN"
+#     echo $1
+#     nohup sudo python3 "$SCRIPT_DIR/raingauge.py" >> "$LOG_RAINGAUGE" 2>&1 &
+#     echo $! > "$PID_RAINGAUGE"
+
+#     echo "✅ Started all components."
+# }
+
+
+# stop_sensor() {
+#     echo "🛑 Stopping flood sensor components..."
+
+#     # for pid_file in "$PID_MAIN" "$PID_RAINGAUGE" "$PID_RECEIVER"; do
+#     for pid_file in "$PID_MAIN" "$PID_RECEIVER"; do
+#         if [ -f "$pid_file" ]; then
+#             PID=$(cat "$pid_file")
+#             if ps -p "$PID" > /dev/null 2>&1; then
+#                 sudo skill "$PID"
+#                 sleep 2
+#                 if ps -p "$PID" > /dev/null 2>&1; then
+#                     echo "⛔ Force killing PID $PID"
+#                     kill -9 "$PID"
+#                 fi
+#             else
+#                 echo "⚠️ Process $PID not running"
+#             fi
+#             rm -f "$pid_file"
+#         else
+#             echo "⚠️ PID file $pid_file not found"
+#         fi
+#     done
+
+#     echo "🧼 All stopped."
+# }
 
 stop_sensor() {
     echo "🛑 Stopping flood sensor components..."
 
-    for pid_file in "$PID_MAIN" "$PID_RAINGAUGE" "$PID_UPLOADER"; do
+    for pid_file in "$PID_MAIN" "$PID_RECEIVER"; do
         if [ -f "$pid_file" ]; then
             PID=$(cat "$pid_file")
             if ps -p "$PID" > /dev/null 2>&1; then
-                sudo skill "$PID"
+                # Change skill to kill for standard
+                kill "$PID" 
                 sleep 2
                 if ps -p "$PID" > /dev/null 2>&1; then
                     echo "⛔ Force killing PID $PID"
@@ -94,6 +180,7 @@ stop_sensor() {
             fi
             rm -f "$pid_file"
         else
+            # Warning if PID file doesn't exist
             echo "⚠️ PID file $pid_file not found"
         fi
     done
@@ -102,16 +189,40 @@ stop_sensor() {
 }
 
 
+# status_sensor() {
+#     echo "📊 Status report:"
+#     # for pid_file in "$PID_MAIN" "$PID_RAINGAUGE" "$PID_RECEIVER"; do
+#     for pid_file in "$PID_MAIN" "$PID_RECEIVER"; do
+#         SCRIPT_NAME=$(basename "$pid_file" .pid)
+#         if [ -f "$pid_file" ]; then
+#             PID=$(cat "$pid_file")
+#             if ps -p "$PID" > /dev/null 2>&1; then
+#                 echo "✅ $SCRIPT_NAME.py is running (PID: $PID)"
+#             else
+#                 echo "❌ $SCRIPT_NAME.py is NOT running but PID file exists"
+#             fi
+#         else
+#             echo "❌ $SCRIPT_NAME.py PID file missing"
+#         fi
+#     done
+# }
+
 status_sensor() {
     echo "📊 Status report:"
-    for pid_file in "$PID_MAIN" "$PID_RAINGAUGE" "$PID_UPLOADER"; do
-        SCRIPT_NAME=$(basename "$pid_file" .pid)
+
+    for pid_file in "$PID_MAIN" "$PID_RECEIVER"; do
+        case "$pid_file" in
+            *$PID_MAIN) SCRIPT_NAME="main";;
+            *$PID_RECEIVER) SCRIPT_NAME="metrics_receiver";;
+            *) SCRIPT_NAME=$(basename "$pid_file" .pid);;
+        esac
+
         if [ -f "$pid_file" ]; then
             PID=$(cat "$pid_file")
             if ps -p "$PID" > /dev/null 2>&1; then
                 echo "✅ $SCRIPT_NAME.py is running (PID: $PID)"
             else
-                echo "❌ $SCRIPT_NAME.py is NOT running but PID file exists"
+                echo "❌ $SCRIPT_NAME.py is NOT running but PID file exists (Stale PID: $PID)"
             fi
         else
             echo "❌ $SCRIPT_NAME.py PID file missing"
@@ -120,29 +231,72 @@ status_sensor() {
 }
 
 
+# case "$1" in
+#     start)
+#         start_sensor
+#         ;;
+#     stop)
+#         stop_sensor
+#         ;;
+#     restart)
+#         stop_sensor
+#         sleep 2
+#         start_sensor
+#         ;;
+#     status)
+#         status_sensor
+#         ;;
+#     *)
+#         # Se debe añadir la opción de iniciar como Nodo, como Servidor o como ExitNode (ambos)
+#             # Primero, trabajar con ExitNode y Servidor
+#         echo "Usage: $0 {start | stop | restart | status}"
+#         echo ""
+#         echo "Commands:"
+#         echo "  start   - Start all flood sensor components"
+#         echo "  stop    - Stop all flood sensor components"
+#         echo "  restart - Restart all flood sensor components"
+#         echo "  status  - Show running status"
+#         exit 1
+#         ;;
+# esac
+
+
+# === EXECUTION BLOCK ===
 case "$1" in
     start)
-        start_sensor
+        # Check if a "Mode" parameter was given
+        case "$2" in
+            Server|Node|ExitNode)
+                start_sensor "$2"
+                ;;
+            "")
+                echo "⛔ ERROR: Missing start mode."
+                echo "Usage: $0 start {Server | Node | ExitNode}"
+                exit 1
+                ;;
+            *)
+                echo "⛔ ERROR: Invalid start mode '$2'."
+                exit 1
+                ;;
+        esac
         ;;
-    stop)
-        stop_sensor
-        ;;
-    restart)
-        stop_sensor
-        sleep 2
-        start_sensor
-        ;;
-    status)
-        status_sensor
+    stop|status|restart)
+        "$1"_sensor
         ;;
     *)
+        # --help general usage
         echo "Usage: $0 {start | stop | restart | status}"
         echo ""
         echo "Commands:"
-        echo "  start   - Start all flood sensor components"
+        echo "  start {Server | Node | ExitNode} - Start components based on role."
+        echo "    Server: metrics_receiver.py only"
+        echo "    Node: main.py"
+        echo "    ExitNode: main.py and metrics_receiver.py"
         echo "  stop    - Stop all flood sensor components"
         echo "  restart - Restart all flood sensor components"
         echo "  status  - Show running status"
         exit 1
         ;;
 esac
+
+

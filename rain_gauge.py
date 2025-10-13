@@ -1,7 +1,7 @@
 import os
 os.environ["GPIOZERO_PIN_FACTORY"] = "rpigpio"
 
-from gpiozero import Button
+# from gpiozero import Button
 from datetime import datetime, timezone
 import logging
 import csv
@@ -10,8 +10,15 @@ import time
 from dotenv import load_dotenv
 
 
+################################
+import time
+import random
+################################
+
+
+
 # === ENVIRONMENT  VARIABLES ===
-load_dotenv(".env.config")  # Config env variables
+load_dotenv("./Env/.env.config")  # Config env variables
 
 
 # === CONFIGURATION ===
@@ -23,66 +30,66 @@ PID_FILE = "./PID/flood_sensor.pid"
 
 
 # === SENSOR SETUP ===
-rain_sensor = Button(os.getenv('RAINFALL_SENSOR')) # Previous 27
+# rain_sensor = Button(os.getenv('RAINFALL_SENSOR')) # Previous 27
 
-# Globals to track counts and timing
-count = 0
-current_hour_str = None
-current_measurement_file = None
-last_logged_minute = None
-SENSOR_FILE = os.path.join(LOG_DIR, "sensors.csv")
+# # Globals to track counts and timing
+# count = 0
+# current_hour_str = None
+# current_measurement_file = None
+# last_logged_minute = None
+# SENSOR_FILE = os.path.join(LOG_DIR, "sensors.csv")
 
-os.makedirs(LOG_DIR, exist_ok=True)
+# os.makedirs(LOG_DIR, exist_ok=True)
 
-# === LOGGING SETUP ===
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(os.path.join(LOG_DIR,'rain_gauge_sensor.log')),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
+# # === LOGGING SETUP ===
+# logging.basicConfig(
+#     level=logging.INFO,
+#     format='%(asctime)s - %(levelname)s - %(message)s',
+#     handlers=[
+#         logging.FileHandler(os.path.join(LOG_DIR,'rain_gauge_sensor.log')),
+#         logging.StreamHandler()
+#     ]
+# )
+# logger = logging.getLogger(__name__)
 
-# === WRITE PID FILE ===
-with open(PID_FILE, "w") as f:
-    f.write(str(os.getpid()))
-
-
-# === INITIALIZATION FUNCTIONS AND UTILS ===
-def init_sensor_file_if_needed():
-    if not os.path.exists(LOG_DIR):
-        os.makedirs(LOG_DIR)
-    if not os.path.exists(SENSOR_FILE):
-        try:
-            with open(SENSOR_FILE, "w", newline="") as f:
-                writer = csv.writer(f, delimiter=",")
-                writer.writerow(["alias","variablename","postprocess","units","datatype"])
-                writer.writerow(["precipitation","precipitation","true","mm","float"])
-            logger.info(f"✅ Created sensor file with headers at {SENSOR_FILE}")
-        except Exception as e:
-            logger.error(f"Failed to create sensor file: {e}")
-    else:
-        logger.info(f"Sensor file already exists at {SENSOR_FILE}")
+# # === WRITE PID FILE ===
+# with open(PID_FILE, "w") as f:
+#     f.write(str(os.getpid()))
 
 
-def get_measurement_file_for_hour(dt):
-    return os.path.join(LOG_DIR, f"rain_{dt.strftime('%Y%m%d_%H')}.csv")
+# # === INITIALIZATION FUNCTIONS AND UTILS ===
+# def init_sensor_file_if_needed():
+#     if not os.path.exists(LOG_DIR):
+#         os.makedirs(LOG_DIR)
+#     if not os.path.exists(SENSOR_FILE):
+#         try:
+#             with open(SENSOR_FILE, "w", newline="") as f:
+#                 writer = csv.writer(f, delimiter=",")
+#                 writer.writerow(["alias","variablename","postprocess","units","datatype"])
+#                 writer.writerow(["precipitation","precipitation","true","mm","float"])
+#             logger.info(f"✅ Created sensor file with headers at {SENSOR_FILE}")
+#         except Exception as e:
+#             logger.error(f"Failed to create sensor file: {e}")
+#     else:
+#         logger.info(f"Sensor file already exists at {SENSOR_FILE}")
 
 
-def init_measurement_file_if_needed(filepath):
-    if not os.path.exists(filepath):
-        with open(filepath, "w", newline="") as f:
-            writer = csv.writer(f, delimiter=",")
-            writer.writerow(["Precipitation_mm","collectiontime","Lat_deg","Lon_deg"])
+# def get_measurement_file_for_hour(dt):
+#     return os.path.join(LOG_DIR, f"rain_{dt.strftime('%Y%m%d_%H')}.csv")
 
 
-# === PRINCIPAL FUNCTIONS ===
-def bucket_tipped():
-    """This function is called by the sensor event. It only increase the counter."""
-    global count
-    count += 1
+# def init_measurement_file_if_needed(filepath):
+#     if not os.path.exists(filepath):
+#         with open(filepath, "w", newline="") as f:
+#             writer = csv.writer(f, delimiter=",")
+#             writer.writerow(["Precipitation_mm","collectiontime","Lat_deg","Lon_deg"])
+
+
+# # === PRINCIPAL FUNCTIONS ===
+# def bucket_tipped():
+#     """This function is called by the sensor event. It only increase the counter."""
+#     global count
+#     count += 1
 
 
 # def log_minute_data(minute_dt, rainfall_mm):
@@ -100,62 +107,78 @@ def bucket_tipped():
 #         logger.error(f"Failed to log minute data: {e}")
 
 
-def log_minute_data():
-    """Responsible for logging data every minute."""
-    global count, last_logged_minute, current_measurement_file
+# def log_minute_data():
+#     """Responsible for logging data every minute."""
+#     global count, last_logged_minute, current_measurement_file
 
-    now = datetime.now()
-    current_minute = now.replace(second=0, microsecond=0)
-    hour_str = now.strftime('%Y%m%d_%H')
+#     now = datetime.now()
+#     current_minute = now.replace(second=0, microsecond=0)
+#     hour_str = now.strftime('%Y%m%d_%H')
 
-    if current_measurement_file is None or os.path.basename(current_measurement_file) != f"rain_{hour_str}.csv":
-        current_measurement_file = get_measurement_file_for_hour(now)
-        logger.info(f"🕰️ New hour started: logging measurements to {os.path.basename(current_measurement_file)}")
-        last_logged_minute = current_minute
+#     if current_measurement_file is None or os.path.basename(current_measurement_file) != f"rain_{hour_str}.csv":
+#         current_measurement_file = get_measurement_file_for_hour(now)
+#         logger.info(f"🕰️ New hour started: logging measurements to {os.path.basename(current_measurement_file)}")
+#         last_logged_minute = current_minute
 
-    elif current_minute > last_logged_minute:
-        # Log the data from the previous minute
-        rainfall_mm = count * BUCKET_SIZE
-        try:
-            init_measurement_file_if_needed(current_measurement_file)
-            timestamp_iso = last_logged_minute.replace(tzinfo=timezone.utc).isoformat()
-            with open(current_measurement_file, "a", newline="") as f:
-                writer = csv.writer(f, delimiter=",")
-                writer.writerow([rainfall_mm, timestamp_iso, GPS_LAT, GPS_LON])
-            logger.info(f"💧 Logged {rainfall_mm:.2f} mm for minute starting {timestamp_iso} to {os.path.basename(current_measurement_file)}")
-        except Exception as e:
-            logger.error(f"Failed to log minute data: {e}")
+#     elif current_minute > last_logged_minute:
+#         # Log the data from the previous minute
+#         rainfall_mm = count * BUCKET_SIZE
+#         try:
+#             init_measurement_file_if_needed(current_measurement_file)
+#             timestamp_iso = last_logged_minute.replace(tzinfo=timezone.utc).isoformat()
+#             with open(current_measurement_file, "a", newline="") as f:
+#                 writer = csv.writer(f, delimiter=",")
+#                 writer.writerow([rainfall_mm, timestamp_iso, GPS_LAT, GPS_LON])
+#             logger.info(f"💧 Logged {rainfall_mm:.2f} mm for minute starting {timestamp_iso} to {os.path.basename(current_measurement_file)}")
+#         except Exception as e:
+#             logger.error(f"Failed to log minute data: {e}")
         
-        count = 0  # Restart the counter
-        last_logged_minute = current_minute
+#         count = 0  # Restart the counter
+#         last_logged_minute = current_minute
 
-    # Configure the next 60 seconds
-    t = Timer(60, log_minute_data)
-    t.start()
+#     # Configure the next 60 seconds
+#     t = Timer(60, log_minute_data)
+#     t.start()
 
+
+
+###########################################################33
+
+def get_data():
+    time.sleep(5)
+    return {
+        "pressure": random.uniform(900, 1100),
+        "altitude": random.uniform(100, 500),
+        "status": random.choice(["OK", "FAIL"])
+    }
+
+###########################################################
 
 
 # === DEFINE MAIN ===
-def main():
-    logger.info("🌧️ Starting rain gauge monitor...")
-    init_sensor_file_if_needed()
+# def main():
 
-    try:
-        # Configure the event Manager of the Sensor
-        rain_sensor.when_pressed = bucket_tipped
+
+
+#     logger.info("🌧️ Starting rain gauge monitor...")
+#     init_sensor_file_if_needed()
+
+#     try:
+#         # Configure the event Manager of the Sensor
+#         rain_sensor.when_pressed = bucket_tipped
         
-        # Start the Logging Function
-        log_minute_data()
+#         # Start the Logging Function
+#         log_minute_data()
 
-        # Keep the program in execution
-        from signal import pause
-        pause()
+#         # Keep the program in execution
+#         from signal import pause
+#         pause()
 
-    except KeyboardInterrupt:
-        logger.info("🌧️ Rain gauge monitoring stopped by user.")
-    finally:
-        # Clean GPIO
-        logger.info("Cleanup handled by gpiozero.")
+#     except KeyboardInterrupt:
+#         logger.info("🌧️ Rain gauge monitoring stopped by user.")
+#     finally:
+#         # Clean GPIO
+#         logger.info("Cleanup handled by gpiozero.")
 
 
 # def main():
@@ -195,7 +218,3 @@ def main():
 
     # except KeyboardInterrupt:
     #     logger.info("🌧️ Rain gauge monitoring stopped by user.")
-
-
-if __name__ == "__main__":
-    main()

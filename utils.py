@@ -1,9 +1,10 @@
 import requests
 from dotenv import load_dotenv
+import os
 
 
 # === ENVIRONMENT  VARIABLES ===
-load_dotenv(".env.public")  # Public env variables
+load_dotenv("./Env/.env.public")  # Public env variables
 
 
 # === CONFIGURATION ===

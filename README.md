@@ -40,7 +40,7 @@ This application monitors a physical flood sensor connected to a Raspberry Pi an
    ```bash
    python -m venv --system-site-packages venv
    source venv/bin/activate
-   pip3 install -r requirements.txt
+   pip3 install -r Setup/requirements.txt
    ```
 
 3. **Create environment configuration:**
@@ -59,11 +59,11 @@ This application monitors a physical flood sensor connected to a Raspberry Pi an
 
 ### Environment Variables
 
-Create a `.env` file with the following variables:
+Create a `.env` file with the following variables for MINT:
 
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `userid` | Your Tapis username | Yes |
+|  Variable  | Description | Required |
+|------------|-------------|----------|
+|  `userid`  | Your Tapis username | Yes |
 | `password` | Your Tapis password | Yes |
 
 ### Hardware Configuration
@@ -150,15 +150,38 @@ Log levels include:
 
 ## File Structure
 
+REVISAR LA NUEVA ESTRUCTURA !!!
+
 ```
 Flood-Sensor/
-├── main.py              # Main application logic
-├── run.sh               # Execution and daemon management script
-├── utils.py             # Utility functions (not shown)
-├── .env                 # Environment variables (create this)
-├── flood_sensor.log     # Application logs (auto-generated)
-├── flood_sensor.pid     # Process ID file (auto-generated)
-└── README.md            # This file
+├── Env/                            # Environment configuration files
+│   ├── .env.config                 # Private environment variables (API keys, secrets)
+│   ├── .env.public                 # Public/shared environment variables
+|   └── .env.                       # Private environment variables (Must be created)
+├── Logs/                           # System and application log files (Created automaticaly)
+├── PID/                            # Process ID files for daemon management (Created/deleted automaticaly)
+├── Sensor_Tests/                   # Hardware validation test suites
+│   ├── flood_sensor_test.py        # Flood sensor calibration/validation tests
+│   └── rainfall_sensor_test.py     # Rain gauge tests
+├── Services/                       # Systemd service configurations
+│   ├── flood-sensor.service        # Flood monitoring daemon service
+│   └── rain_gauge_uploader.service # Data telemetry service 
+                                                                     CREO QUE DEBO HACER CONSIDERACIONES EN SERVICES!!!
+├── Setup/                          # Dependency management
+│   ├── constraints.txt             # Version-pinned package constraints
+│   └── requirements.txt            # Python package requirements
+├── .gitattributes                  # Git file handling rules
+├── .gitignore                      # Git excluded files/patterns
+├── campaign.py                     # Monitoring campaign scheduler
+├── flood_sensor.py                 # Core flood detection logic
+├── LICENSE                         # Project license (MIT)
+├── main.py                         # Primary application logic
+├── metrics_receiver.py             # Listener metrics server
+├── metrics_uploader.py             # Data export to Upstream-dso
+├── rain_gauge.py                   # Precipitation measurement module
+├── README.md                       # Project documentation
+├── run.sh                          # bash execution script
+└── utils.py                        # Shared utility functions
 ```
 
 ## API Integration
