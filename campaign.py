@@ -16,7 +16,7 @@ try:
         password=os.getenv('password'),
         base_url=os.getenv('BASE_URL'),
         ckan_url=os.getenv('CKAN_URL'),
-        ckan_organization="dso-internal"
+        ckan_organization=os.getenv('CKAN_ORG'),
     )
 
     if client.authenticate():
@@ -52,7 +52,7 @@ except Exception as e:
 ###############################################################################
 # Create campaign
 campaign_data = CampaignsIn(
-    name="Test 2025",
+    name="Flood Sensor Test 2025",
     description="Rain Gauge and Flood Sensor Test",
     contact_name="Sebastian Hernandez Sterling",
     contact_email="",

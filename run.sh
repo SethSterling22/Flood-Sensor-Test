@@ -11,14 +11,14 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # PID files
-PID_MAIN="$SCRIPT_DIR/PID/flood_sensor.pid"
+PID_MAIN="$SCRIPT_DIR/PID/main.pid"
 # PID_RAINGAUGE="$SCRIPT_DIR/PID/rain_gauge.pid"
 PID_RECEIVER="$SCRIPT_DIR/PID/metrics_receiver.pid" # The receiver will log what it sends
 
 # Log files
-LOG_MAIN="$SCRIPT_DIR/Logs/flood_sensor.log"
-LOG_RAINGAUGE="$SCRIPT_DIR/Logs/rain_gauge.log"
-LOG_RAINGAUGE="$SCRIPT_DIR/Logs/rain_gauge.log"
+LOG_MAIN="$SCRIPT_DIR/Logs/main.log"
+# LOG_RAINGAUGE="$SCRIPT_DIR/Logs/rain_gauge.log"
+LOG_RECEIVER="$SCRIPT_DIR/Logs/metrics_receiver.log"
 
 # === Check required files exist ===
 for file in main.py rain_gauge.py flood_sensor.py metrics_receiver.py Env/.env Env/.env.public Env/.env.config; do
@@ -67,6 +67,8 @@ start_component() {
     local pid_file="$2"
     local log_file="$3"
     local use_sudo="$4"
+    shift 4 
+    local extra_args="$@"  
 
     if check_pid "$pid_file"; then
         echo "⚠️ Component $script_name is already running."
@@ -75,9 +77,9 @@ start_component() {
 
     echo -n "🚀 Starting $script_name... "
     if [ "$use_sudo" = "true" ]; then
-        nohup sudo python3 "$SCRIPT_DIR/$script_name" >> "$log_file" 2>&1 &
+        nohup sudo python3 "$SCRIPT_DIR/$script_name"  $extra_args >> "$log_file" 2>&1 &
     else
-        nohup python3 "$SCRIPT_DIR/$script_name" >> "$log_file" 2>&1 &
+        nohup python3 "$SCRIPT_DIR/$script_name"  $extra_args >> "$log_file" 2>&1 &
     fi
     echo $! > "$pid_file"
     echo "Done (PID: $(cat "$pid_file"))."
@@ -101,7 +103,7 @@ start_sensor() {
             ;;
         ExitNode)
             echo "⚙️ Mode: ExitNode starting main.py and metrics_receiver.py ..."
-            start_component "main.py ExitNode" "$PID_MAIN" "$LOG_MAIN" "false"
+            start_component "main.py" "$PID_MAIN" "$LOG_MAIN" "false" "ExitNode"
             start_component "metrics_receiver.py" "$PID_RECEIVER" "$LOG_RECEIVER" "false"
             ;;
         *)
@@ -164,16 +166,18 @@ start_sensor() {
 stop_sensor() {
     echo "🛑 Stopping flood sensor components..."
 
-    for pid_file in "$PID_MAIN" "$PID_RECEIVER"; do
+    for pid_file in "$PID_MAIN" "$PID_RECEIVER"; dodecode
         if [ -f "$pid_file" ]; then
             PID=$(cat "$pid_file")
             if ps -p "$PID" > /dev/null 2>&1; then
                 # Change skill to kill for standard
-                kill "$PID" 
+                kill -9 "$PID" 
+                wait "$PID" 2>/dev/null
                 sleep 2
                 if ps -p "$PID" > /dev/null 2>&1; then
                     echo "⛔ Force killing PID $PID"
                     kill -9 "$PID"
+                    wait "$PID" 2>/dev/null
                 fi
             else
                 echo "⚠️ Process $PID not running"

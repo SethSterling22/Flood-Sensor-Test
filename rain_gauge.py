@@ -23,6 +23,7 @@ load_dotenv("./Env/.env.config")  # Config env variables
 
 # === CONFIGURATION ===
 BUCKET_SIZE = 0.2794  # mm per tip, adjust if needed
+# Ver si puedo automatizar la subida de locación geográfica
 GPS_LAT = 60.793241544286595    # Replace with Latitude
 GPS_LON = -161.78002508639943   # Replace with Longitude
 LOG_DIR = "./Logs/rain_logs"

@@ -20,6 +20,45 @@ load_dotenv("./Env/.env.config")  # Config env variables
 
 
 
+HOST = "0.0.0.0"
+PORT = int(os.getenv("RECEIVER_PORT") or 4040)
+
+
+def start_server():
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
+
+        # Make the port Reusable if it turns down
+        server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server_socket.bind((HOST, PORT))
+        server_socket.listen()
+        print(f"🟢 Server actived on: {HOST}:{PORT}")
+
+        while True:
+            conn, addr = server_socket.accept()
+            with conn:
+                print(f"📡 Connection stablished from: {addr}")
+
+                # Send signal to the client when connection is stablished
+                conn.sendall(b"READY")
+
+                # Wait for the client to sent the data (Must be pushed in a queue)
+                data = conn.recv(4096)
+                if not data:
+                    continue
+
+                try:
+                    message = json.loads(data.decode("utf-8"))
+                    print(f"🕓 {datetime.now()} - Received Data:")
+                    print(json.dumps(message, indent=4))
+                    conn.sendall(b"OK")  # Confirmación final
+                except json.JSONDecodeError:
+                    print("❌ Error: Received Data is not a valid JSON format.")
+                    conn.sendall(b"ERROR")
+
+if __name__ == "__main__":
+    start_server()
+
 
 # # Diccionario para mantener las sesiones de pares
 # sessions = {}
@@ -200,47 +239,3 @@ load_dotenv("./Env/.env.config")  # Config env variables
 
 # if __name__ == "__main__":
 #     start_weather_services()
-
-
-
-# receiver.py
-
-
-HOST = "0.0.0.0"
-PORT = int(os.getenv("RECEIVER_PORT") or 4040)
-
-
-def start_server():
-
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
-
-        # Make the port Reusable if it turns down
-        server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        server_socket.bind((HOST, PORT))
-        server_socket.listen()
-        print(f"🟢 Servidor activo en {HOST}:{PORT}")
-
-        while True:
-            conn, addr = server_socket.accept()
-            with conn:
-                print(f"📡 Conexión recibida desde {addr}")
-
-                # 1️⃣ Enviar señal de handshake al cliente
-                conn.sendall(b"READY")
-
-                # 2️⃣ Esperar que el cliente envíe los datos
-                data = conn.recv(4096)
-                if not data:
-                    continue
-
-                try:
-                    message = json.loads(data.decode("utf-8"))
-                    print(f"🕓 {datetime.now()} - Datos recibidos:")
-                    print(json.dumps(message, indent=4))
-                    conn.sendall(b"OK")  # Confirmación final
-                except json.JSONDecodeError:
-                    print("❌ Error: Datos recibidos no son JSON válidos.")
-                    conn.sendall(b"ERROR")
-
-if __name__ == "__main__":
-    start_server()
