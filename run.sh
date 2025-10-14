@@ -9,9 +9,9 @@
 
 
 
-# === CONFIGURE GLOBAL VARIABLE ===
-PYTHON_PATH="$(which python)" # Set Python path
+# === CONFIGURE GLOBAL VARIABLES ===
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" # Set script directory
+VENV_PYTHON="$SCRIPT_DIR/venv/bin/python" # Set Python path
 
 # == PID files ==
 PID_MAIN="$SCRIPT_DIR/PID/main.pid"
@@ -83,10 +83,10 @@ start_component() {
     echo -n "🚀 Starting $script_name... "
     if [ "$use_sudo" = "true" ]; then
         # which python !!!
-        nohup sudo $PYTHON_PATH "$SCRIPT_DIR/$script_name"  $extra_args >> "$log_file" 2>&1 &
+        nohup sudo $VENV_PYTHON "$SCRIPT_DIR/$script_name"  $extra_args >> "$log_file" 2>&1 &
     else
         # which python !!!
-        nohup $PYTHON_PATH "$SCRIPT_DIR/$script_name"  $extra_args >> "$log_file" 2>&1 &
+        nohup $VENV_PYTHON "$SCRIPT_DIR/$script_name"  $extra_args >> "$log_file" 2>&1 &
     fi
     echo $! > "$pid_file"
     echo "Done (PID: $(cat "$pid_file"))."
