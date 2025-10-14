@@ -7,18 +7,23 @@
 # ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 # Should use UTF-8 for the icons and special characters
 
-# Set script directory
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# PID files
+
+# === CONFIGURE GLOBAL VARIABLE ===
+PYTHON_PATH="$(which python)" # Set Python path
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" # Set script directory
+
+# == PID files ==
 PID_MAIN="$SCRIPT_DIR/PID/main.pid"
 # PID_RAINGAUGE="$SCRIPT_DIR/PID/rain_gauge.pid"
 PID_RECEIVER="$SCRIPT_DIR/PID/metrics_receiver.pid" # The receiver will log what it sends
 
-# Log files
+# == Log files ==
 LOG_MAIN="$SCRIPT_DIR/Logs/main.log"
 # LOG_RAINGAUGE="$SCRIPT_DIR/Logs/rain_gauge.log"
 LOG_RECEIVER="$SCRIPT_DIR/Logs/metrics_receiver.log"
+
+
 
 # === Check required files exist ===
 for file in main.py rain_gauge.py flood_sensor.py metrics_receiver.py Env/.env Env/.env.public Env/.env.config; do
@@ -29,39 +34,39 @@ for file in main.py rain_gauge.py flood_sensor.py metrics_receiver.py Env/.env E
 done
 
 
-# === Activate virtual environment ===
-# if [ -f "$SCRIPT_DIR/venv/bin/activate" ]; then
-#     source "$SCRIPT_DIR/venv/bin/activate"
-# else
-#     echo "❌ Error: Virtual environment not found at venv/"
-#     exit 1
-# fi
+# === ACTIVATE VIRTUAL ENVIRONMENT ===
+if [ -f "$SCRIPT_DIR/venv/bin/activate" ]; then
+    source "$SCRIPT_DIR/venv/bin/activate"
+else
+    echo "❌ Error: Virtual environment not found at venv/"
+    echo "📦 Can be created with: python -m venv --system-site-packages venv"
+    exit 1
+fi
 
 
-# # === Check Python and dependencies ===
-# if ! command -v python3 &> /dev/null; then
-#     echo "❌ Error: python3 is not installed or not in PATH"
-#     exit 1
-# fi
+# === CHECK PYTHON AND ITS DEPENDENCIES ===
+if ! command -v python3 &> /dev/null; then
+    echo "❌ Error: python3 is not installed or not in PATH"
+    exit 1
+fi
 
-# echo "🔍 Checking Python dependencies..."
-# python3 -c "import tapipy, dotenv, requests, RPi.GPIO" 2>/dev/null
-# if [ $? -ne 0 ]; then
-#     echo "❌ Error: Required Python packages are missing."
-#     echo "📦 Install with: pip3 install tapipy python-dotenv requests RPi.GPIO"
-#     echo "      Or with: pip3 install -r requirements.txt"
-#     exit 1
-# fi
+echo "🔍 Checking Python dependencies..."
+python3 -c "import tapipy, dotenv, requests, RPi.GPIO" 2>/dev/null
+if [ $? -ne 0 ]; then
+    echo "❌ Error: Required Python packages are missing."
+    echo "📦 Install with: pip3 install tapipy python-dotenv requests RPi.GPIO"
+    echo "      Or with: pip3 install -r requirements.txt"
+    exit 1
+fi
 
-# === Check if the Process is running in background ===
+
+# === CHECK IF THE PROCESS IS RUNNING IN BACKGROUND ===
 check_pid() {
     [ -f "$1" ] && ps -p "$(cat "$1")" > /dev/null 2>&1
 }
 
 
-
-
-
+# === PROCESSES MANAGER ===
 start_component() {
     local script_name="$1"
     local pid_file="$2"
@@ -77,14 +82,15 @@ start_component() {
 
     echo -n "🚀 Starting $script_name... "
     if [ "$use_sudo" = "true" ]; then
-        nohup sudo python3 "$SCRIPT_DIR/$script_name"  $extra_args >> "$log_file" 2>&1 &
+        # which python !!!
+        nohup sudo $PYTHON_PATH "$SCRIPT_DIR/$script_name"  $extra_args >> "$log_file" 2>&1 &
     else
-        nohup python3 "$SCRIPT_DIR/$script_name"  $extra_args >> "$log_file" 2>&1 &
+        # which python !!!
+        nohup $PYTHON_PATH "$SCRIPT_DIR/$script_name"  $extra_args >> "$log_file" 2>&1 &
     fi
     echo $! > "$pid_file"
     echo "Done (PID: $(cat "$pid_file"))."
 }
-
 
 
 start_sensor() {
@@ -192,7 +198,6 @@ stop_sensor() {
     echo "🧼 All stopped."
 }
 
-
 # status_sensor() {
 #     echo "📊 Status report:"
 #     # for pid_file in "$PID_MAIN" "$PID_RAINGAUGE" "$PID_RECEIVER"; do
@@ -265,7 +270,7 @@ status_sensor() {
 # esac
 
 
-# === EXECUTION BLOCK ===
+# === EXECUTION MENU ===
 case "$1" in
     start)
         # Check if a "Mode" parameter was given

@@ -30,7 +30,7 @@ def get_streamflow_data():
 
             ### REVISAR EL JSON, POR QUE SE FILTRA Y QUE DEVUELVE Y SI PUEDE TRAERSE YA FILTRADO !!!
 
-            if variable['variableCode'][0]['value'] == '00060':  # Streamflow code
+            if variable['variableCode'][0]['value'] == '00060':  # Streamflow code (Discharge, cubic feet per second)
                 # Extract the latest value VERIFICAR QUE EXISTA INFORMACION EN ESE CAMPO Y COLOCAR VALOR POR DEFECTO (TERNARIOS) !!!
                 latest_value = series['values'][0]['value'][0]['value']
                 date_time = series['values'][0]['value'][0]['dateTime']
