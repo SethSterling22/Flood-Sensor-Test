@@ -4,6 +4,7 @@ import random
 import signal
 import sys
 import time
+import logging
 
 
 import json
@@ -25,37 +26,55 @@ Nodes = {}
 NODE_COUNTER = 0
 
 
+# === LOGGING SETUP ===
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(os.path.join(LOG_DIR,'metrics_receiver.log')),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+
+
 def start_server():
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
 
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
+            # Make the port Reusable if it turns down
+            server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            server_socket.bind((HOST, PORT))
+            server_socket.listen()
+            print(f"🟢 Server actived on: {HOST}:{PORT}")
+            logger.info(f"🟢 Server actived on: {HOST}:{PORT}")
 
-        # Make the port Reusable if it turns down
-        server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        server_socket.bind((HOST, PORT))
-        server_socket.listen()
-        print(f"🟢 Server actived on: {HOST}:{PORT}")
+            while True:
+                conn, addr = server_socket.accept()
+                with conn:
+                    print(f"📡 Connection stablished from: {addr}")
 
-        while True:
-            conn, addr = server_socket.accept()
-            with conn:
-                print(f"📡 Connection stablished from: {addr}")
+                    # Send signal to the client when connection is stablished
+                    conn.sendall(b"READY")
 
-                # Send signal to the client when connection is stablished
-                conn.sendall(b"READY")
+                    # Wait for the client to sent the data (Must be pushed in a queue)
+                    data = conn.recv(4096)
+                    if not data:
+                        continue
 
-                # Wait for the client to sent the data (Must be pushed in a queue)
-                data = conn.recv(4096)
-                if not data:
-                    continue
+                    try:
+                        message = json.loads(data.decode("utf-8"))
+                        print(f"🕓 {datetime.now()} - Received Data:")
+                        print(json.dumps(message, indent=4))
+                        conn.sendall(b"OK")  # Confirmación final
+                    except json.JSONDecodeError:
+                        print("❌ Error: Received Data is not a valid JSON format.")
+                        conn.sendall(b"ERROR")
 
-                try:
-                    message = json.loads(data.decode("utf-8"))
-                    print(f"🕓 {datetime.now()} - Received Data:")
-                    print(json.dumps(message, indent=4))
-                    conn.sendall(b"OK")  # Confirmación final
-                except json.JSONDecodeError:
-                    print("❌ Error: Received Data is not a valid JSON format.")
-                    conn.sendall(b"ERROR")
+    except KeyboardInterrupt:
+        logger.info("📡 Metrics Receiver stopped by user.")
+    finally:
+        sys.exit(0)
 
 if __name__ == "__main__":
     start_server()

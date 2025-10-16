@@ -1,7 +1,7 @@
 import os
 os.environ["GPIOZERO_PIN_FACTORY"] = "rpigpio"
 
-# from gpiozero import Button
+from gpiozero import Button
 from datetime import datetime, timezone
 import logging
 import csv

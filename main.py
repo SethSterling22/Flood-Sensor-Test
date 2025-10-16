@@ -18,9 +18,10 @@ import os
 
 
 ##############################################
-# from rain_gauge import get_data as rain_gaunge_data
-from rain_gauge import get_flood_data as rain_gaunge_data
-from flood_sensor import get_data as flood_sensor_data
+from rain_gauge import get_data as rain_gaunge_data
+# from rain_gauge import get_rain_data as rain_gaunge_data
+#from flood_sensor import get_data as flood_sensor_data
+from flood_sensor import get_flood_data as flood_sensor_data
 ##############################################
 
 
