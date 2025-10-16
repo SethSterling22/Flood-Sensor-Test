@@ -19,33 +19,35 @@ load_dotenv("./Env/.env")         # Tapis credentials
 load_dotenv("./Env/.env.config")  # Config env variables
 
 
-# sensor_pin = os.getenv('FLOOD_SENSOR')
-# GPIO.setmode(GPIO.BCM)
-# GPIO.setup(sensor_pin, GPIO.IN)
+sensor_pin = os.getenv('FLOOD_SENSOR')
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(sensor_pin, GPIO.IN)
+LOG_DIR = "./Logs/flooding_logs"
 
 
-# # === TASK SETUP ===
-# base_url = os.getenv('MINT_URL')
-# problem_statement = 'IDYnqZpBGvZpL4GPLRcg'
-# task = 'dwDiJ0dymXPd93kvlF9S'
-# sub_task = 'qwiUq7XqNK9bp6crSDj6'
+# === TASK SETUP ===
+base_url = os.getenv('MINT_URL')
+problem_statement = 'IDYnqZpBGvZpL4GPLRcg'
+task = 'dwDiJ0dymXPd93kvlF9S'
+sub_task = 'qwiUq7XqNK9bp6crSDj6'
 
 
-# # Configure logging
-# logging.basicConfig(
-#     level=logging.INFO,
-#     format='%(asctime)s - %(levelname)s - %(message)s',
-#     handlers=[
-#         logging.FileHandler('./Logs/flood_sensor.log'),
-#         logging.StreamHandler()
-#     ]
-# )
-# logger = logging.getLogger(__name__)
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(os.path.join(LOG_DIR,'flood_sensor.log')),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
 
 ###########################################################
+# Only for testing
 def get_data():
-    time.sleep(5)  # simula lectura o trabajo
+    time.sleep(10)  # simula lectura o trabajo
     return {
         "temperature": random.uniform(20, 30),
         "humidity": random.uniform(40, 60),
@@ -54,15 +56,35 @@ def get_data():
 
 ###########################################################
 
+
+def get_flood_data():
+    # Log the process each 1 minute (time.sleep(5) # 5 seconds)
+    logger_countdown = 0
+    logger.info("💧 Starting Flood Sensor monitoring...")
+    
+    try:
+        while True:
+            sensor_state = GPIO.input(sensor_pin)
+
+            # HIGH = No water detected -> do nothing
+            if sensor_state == GPIO.HIGH:
+                time.sleep(5) # 5 seconds
+                streamflow = 0
+                logger_countdown += 5
+                if logger_countdown >= 60:
+                    logger.info("No flooding detected")
+                    
+                    logger_countdown = 0
+            else:
+                logger.info("Flooding has been DETECTED and sent to submmit the Model!")
+                # Return if Flood is DETECTED
+                return True
+
 # def main():
-
-
-
-
 
 #     # Get streamflow data from USGS
 #     streamflow=0
-#     logger.info("💧 Starting Flood Sensor monitoring...")
+#     logger.info(f"💧 Starting Flood Sensor monitoring...")
     
 #     try:
 #         while True:

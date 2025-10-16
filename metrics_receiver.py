@@ -18,10 +18,11 @@ import os
 load_dotenv("./Env/.env.config")  # Config env variables
 
 
-
-
 HOST = "0.0.0.0"
 PORT = int(os.getenv("RECEIVER_PORT") or 4040)
+
+Nodes = {}
+NODE_COUNTER = 0
 
 
 def start_server():

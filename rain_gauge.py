@@ -27,33 +27,33 @@ BUCKET_SIZE = 0.2794  # mm per tip, adjust if needed
 GPS_LAT = 60.793241544286595    # Replace with Latitude
 GPS_LON = -161.78002508639943   # Replace with Longitude
 LOG_DIR = "./Logs/rain_logs"
-PID_FILE = "./PID/flood_sensor.pid"
+# PID_FILE = "./PID/flood_sensor.pid"
 
 
 # === SENSOR SETUP ===
-# rain_sensor = Button(os.getenv('RAINFALL_SENSOR')) # Previous 27
+rain_sensor = Button(os.getenv('RAINFALL_SENSOR')) # Previous 27
 
-# # Globals to track counts and timing
-# count = 0
-# current_hour_str = None
-# current_measurement_file = None
-# last_logged_minute = None
-# SENSOR_FILE = os.path.join(LOG_DIR, "sensors.csv")
+# Globals to track counts and timing
+count = 0
+current_hour_str = None
+current_measurement_file = None
+last_logged_minute = None
+SENSOR_FILE = os.path.join(LOG_DIR, "sensors.csv")
 
-# os.makedirs(LOG_DIR, exist_ok=True)
+os.makedirs(LOG_DIR, exist_ok=True)
 
-# # === LOGGING SETUP ===
-# logging.basicConfig(
-#     level=logging.INFO,
-#     format='%(asctime)s - %(levelname)s - %(message)s',
-#     handlers=[
-#         logging.FileHandler(os.path.join(LOG_DIR,'rain_gauge_sensor.log')),
-#         logging.StreamHandler()
-#     ]
-# )
-# logger = logging.getLogger(__name__)
+# === LOGGING SETUP ===
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(os.path.join(LOG_DIR,'rain_gauge_sensor.log')),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
-# # === WRITE PID FILE ===
+# === WRITE PID FILE ===
 # with open(PID_FILE, "w") as f:
 #     f.write(str(os.getpid()))
 
@@ -147,6 +147,7 @@ PID_FILE = "./PID/flood_sensor.pid"
 
 def get_data():
     time.sleep(5)
+    logger.info("Testing...")
     return {
         "pressure": random.uniform(900, 1100),
         "altitude": random.uniform(100, 500),
@@ -219,3 +220,9 @@ def get_data():
 
     # except KeyboardInterrupt:
     #     logger.info("🌧️ Rain gauge monitoring stopped by user.")
+
+
+
+
+# if the average of the mm per minute from the past 60 logs is more than 10mm it will send all the information that it have in queue to send that day
+# Both rain gauge and flood data !!!

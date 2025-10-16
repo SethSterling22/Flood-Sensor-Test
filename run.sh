@@ -48,14 +48,14 @@ if ! command -v python3 &> /dev/null; then
     exit 1
 fi
 
-echo "🔍 Checking Python dependencies..."
-python3 -c "import tapipy, dotenv, requests, RPi.GPIO" 2>/dev/null
-if [ $? -ne 0 ]; then
-    echo "❌ Error: Required Python packages are missing."
-    echo "📦 Install with: pip3 install tapipy python-dotenv requests RPi.GPIO"
-    echo "      Or with: pip3 install -r requirements.txt"
-    exit 1
-fi
+# echo "🔍 Checking Python dependencies..."
+# python3 -c "import tapipy, python-dotenv, requests, RPi.GPIO" 2>/dev/null
+# if [ $? -ne 0 ]; then
+#     echo "❌ Error: Required Python packages are missing."
+#     echo "📦 Install with: pip3 install tapipy python-dotenv requests RPi.GPIO"
+#     echo "      Or with: pip3 install -r Setup/requirements.txt"
+#     exit 1
+# fi
 
 
 # === CHECK IF THE PROCESS IS RUNNING IN BACKGROUND ===
@@ -184,7 +184,7 @@ case "$1" in
                 ;;
             "")
                 echo "⛔ ERROR: Missing start mode."
-                echo "Usage: $0 start {Server | Node | ExitNode}"
+                echo "Usage: $0 start { Server | Node | ExitNode }"
                 exit 1
                 ;;
             *)
@@ -201,8 +201,8 @@ case "$1" in
         echo "Usage: $0 {start | stop | restart | status}"
         echo ""
         echo "Commands:"
-        echo "  start {Server | Node | ExitNode} - Start components based on role."
-        echo "    Server: metrics_receiver.py only"
+        echo "  start { Server | Node | ExitNode } - Start components based on role."
+        echo "    Server: metrics_receiver.py"
         echo "    Node: main.py"
         echo "    ExitNode: main.py and metrics_receiver.py"
         echo "  stop    - Stop all flood sensor components"
@@ -211,5 +211,4 @@ case "$1" in
         exit 1
         ;;
 esac
-
 

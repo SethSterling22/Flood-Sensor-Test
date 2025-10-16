@@ -18,7 +18,8 @@ import os
 
 
 ##############################################
-from rain_gauge import get_data as rain_gaunge_data
+# from rain_gauge import get_data as rain_gaunge_data
+from rain_gauge import get_flood_data as rain_gaunge_data
 from flood_sensor import get_data as flood_sensor_data
 ##############################################
 
@@ -68,10 +69,12 @@ def send_to_receiver(thread_name, data):
 
             # Wait for the Connection Server response
             handshake = s.recv(1024).decode("utf-8")
+
             if handshake != "READY":
                 print(f"[{thread_name}] ⚠️ Server not ready, handshake failed: {handshake}")
                 return
             print(f"[{thread_name}] ✅ Handshake OK")
+
 
             # Send data
             s.sendall(json.dumps(payload).encode("utf-8"))

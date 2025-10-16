@@ -16,14 +16,17 @@ This application monitors a physical flood sensor connected to a Raspberry Pi an
 - **Comprehensive Logging**: Detailed logging to both file and console
 - **Daemon Management**: Start, stop, restart, and status checking capabilities
 
-## Hardware Requirements
+## Requirements
+
+### Hardware Requirements
 
 - Raspberry Pi (any model with GPIO support)
 - Flood sensor connected to GPIO pin 13
 - Rainfall Sensor connected to GPIO pin 6
 - Internet connection for API access
+- SE DEBEN AGREGAR LOS DIFERENTES SENSORES !!!
 
-## Software Requirements
+### Software Requirements
 
 - Python 3.6 or higher
 - Required Python packages (see Installation section)
@@ -94,18 +97,13 @@ HAY QUE REVISARLO !!!
 #### Method 1: Direct Execution
 ```bash
 python3 main.py
-```
+``` 
 
-#### Method 2: Using the Run Script
-```bash
-./run.sh
-```
-
-#### Method 3: Daemon Mode
+#### Method 2: Daemon Mode
 
 **Start the daemon:**
 ```bash
-./run.sh start
+./run.sh start  { Server | Node  | ExitNode }
 ```
 
 **Check status:**
@@ -158,21 +156,24 @@ Flood-Sensor/
 │   ├── .env.config                 # Private environment variables (API keys, secrets)
 │   ├── .env.public                 # Public/shared environment variables
 |   └── .env.                       # Private environment variables (Must be created)
+|
 ├── Logs/                           # System and application log files (Created automaticaly)
 ├── PID/                            # Process ID files for daemon management (Created/deleted automaticaly)
 ├── Sensor_Tests/                   # Hardware validation test suites
 │   ├── flood_sensor_test.py        # Flood sensor calibration/validation tests
 │   └── rainfall_sensor_test.py     # Rain gauge tests
+|
 ├── Services/                       # Systemd service configurations
 │   ├── flood-sensor.service        # Flood monitoring daemon service
 │   └── rain_gauge_uploader.service # Data telemetry service 
-                                                                     CREO QUE DEBO HACER CONSIDERACIONES EN SERVICES!!!
+|                                                                    CREO QUE DEBO HACER CONSIDERACIONES EN SERVICES!!!
 ├── Setup/                          # Dependency management
 │   ├── constraints.txt             # Version-pinned package constraints
-│   └── requirements.txt            # Python package requirements
+│   ├── requirements.txt            # Python package requirements
+|   └── campaign_manager.py         # Monitoring campaign scheduler
+|
 ├── .gitattributes                  # Git file handling rules
 ├── .gitignore                      # Git excluded files/patterns
-├── campaign.py                     # Monitoring campaign scheduler
 ├── flood_sensor.py                 # Core flood detection logic
 ├── LICENSE                         # Project license (MIT)
 ├── main.py                         # Primary application logic
