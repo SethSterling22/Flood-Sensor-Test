@@ -24,6 +24,7 @@ PORT = int(os.getenv("RECEIVER_PORT") or 4040)
 
 Nodes = {}
 NODE_COUNTER = 0
+LOG_DIR = "./Logs/"
 
 
 # === LOGGING SETUP ===

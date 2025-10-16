@@ -28,7 +28,7 @@ from flood_sensor import get_flood_data as flood_sensor_data
 # === ENVIRONMENT  VARIABLES ===
 load_dotenv("./Env/.env.config")  # Config env variables
 LOG_DIR = "./Logs/"
-PID_FILE = "./PID/"
+# PID_FILE = "./PID/"
 
 # Use Localhost if run.sh is executed as ExitNode
 RECEIVER_HOST =  "127.0.0.1" if len(sys.argv) > 1 else os.getenv('RECEIVER_HOST')
