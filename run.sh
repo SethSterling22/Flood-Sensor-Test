@@ -8,10 +8,9 @@
 # Should use UTF-8 for the icons and special characters
 
 
-
 # === CONFIGURE GLOBAL VARIABLES ===
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" # Set script directory
-VENV_PYTHON="$SCRIPT_DIR/venv/bin/python" # Set Python path
+VENV_PYTHON="$SCRIPT_DIR/venv/bin/python" # Set venv Python path
 
 # == PID files ==
 PID_MAIN="$SCRIPT_DIR/PID/main.pid"
@@ -22,7 +21,6 @@ PID_RECEIVER="$SCRIPT_DIR/PID/metrics_receiver.pid" # The receiver will log what
 LOG_MAIN="$SCRIPT_DIR/Logs/main.log"
 # LOG_RAINGAUGE="$SCRIPT_DIR/Logs/rain_gauge.log"
 LOG_RECEIVER="$SCRIPT_DIR/Logs/metrics_receiver.log"
-
 
 
 # === Check required files exist ===
@@ -85,7 +83,7 @@ start_component() {
         # which python !!!
         nohup sudo $VENV_PYTHON "$SCRIPT_DIR/$script_name"  $extra_args >> "$log_file" 2>&1 &
     else
-        # which python !!!
+        
         nohup $VENV_PYTHON "$SCRIPT_DIR/$script_name"  $extra_args >> "$log_file" 2>&1 &
     fi
     echo $! > "$pid_file"
@@ -122,53 +120,6 @@ start_sensor() {
 }
 
 
-# start_sensor() {
-#     echo "🚀 Starting flood sensor components..."
-
-#     # if check_pid "$PID_MAIN" || check_pid "$PID_RAINGAUGE" || check_pid "$PID_RECEIVER"; then
-#     if check_pid "$PID_MAIN" || check_pid "$PID_RECEIVER"; then
-#         echo "⚠️ One or more components are already running."
-#         return 1
-#     fi
-
-
-#     # If it's executed as "ExitNode" it will pass "Local" as parameter
-#     nohup python3 "$SCRIPT_DIR/main.py" >> "$LOG_MAIN" 2>&1 &
-#     echo $! > "$PID_MAIN"
-#     echo $1
-#     nohup sudo python3 "$SCRIPT_DIR/raingauge.py" >> "$LOG_RAINGAUGE" 2>&1 &
-#     echo $! > "$PID_RAINGAUGE"
-
-#     echo "✅ Started all components."
-# }
-
-
-# stop_sensor() {
-#     echo "🛑 Stopping flood sensor components..."
-
-#     # for pid_file in "$PID_MAIN" "$PID_RAINGAUGE" "$PID_RECEIVER"; do
-#     for pid_file in "$PID_MAIN" "$PID_RECEIVER"; do
-#         if [ -f "$pid_file" ]; then
-#             PID=$(cat "$pid_file")
-#             if ps -p "$PID" > /dev/null 2>&1; then
-#                 sudo skill "$PID"
-#                 sleep 2
-#                 if ps -p "$PID" > /dev/null 2>&1; then
-#                     echo "⛔ Force killing PID $PID"
-#                     kill -9 "$PID"
-#                 fi
-#             else
-#                 echo "⚠️ Process $PID not running"
-#             fi
-#             rm -f "$pid_file"
-#         else
-#             echo "⚠️ PID file $pid_file not found"
-#         fi
-#     done
-
-#     echo "🧼 All stopped."
-# }
-
 stop_sensor() {
     echo "🛑 Stopping flood sensor components..."
 
@@ -198,23 +149,6 @@ stop_sensor() {
     echo "🧼 All stopped."
 }
 
-# status_sensor() {
-#     echo "📊 Status report:"
-#     # for pid_file in "$PID_MAIN" "$PID_RAINGAUGE" "$PID_RECEIVER"; do
-#     for pid_file in "$PID_MAIN" "$PID_RECEIVER"; do
-#         SCRIPT_NAME=$(basename "$pid_file" .pid)
-#         if [ -f "$pid_file" ]; then
-#             PID=$(cat "$pid_file")
-#             if ps -p "$PID" > /dev/null 2>&1; then
-#                 echo "✅ $SCRIPT_NAME.py is running (PID: $PID)"
-#             else
-#                 echo "❌ $SCRIPT_NAME.py is NOT running but PID file exists"
-#             fi
-#         else
-#             echo "❌ $SCRIPT_NAME.py PID file missing"
-#         fi
-#     done
-# }
 
 status_sensor() {
     echo "📊 Status report:"
@@ -238,36 +172,6 @@ status_sensor() {
         fi
     done
 }
-
-
-# case "$1" in
-#     start)
-#         start_sensor
-#         ;;
-#     stop)
-#         stop_sensor
-#         ;;
-#     restart)
-#         stop_sensor
-#         sleep 2
-#         start_sensor
-#         ;;
-#     status)
-#         status_sensor
-#         ;;
-#     *)
-#         # Se debe añadir la opción de iniciar como Nodo, como Servidor o como ExitNode (ambos)
-#             # Primero, trabajar con ExitNode y Servidor
-#         echo "Usage: $0 {start | stop | restart | status}"
-#         echo ""
-#         echo "Commands:"
-#         echo "  start   - Start all flood sensor components"
-#         echo "  stop    - Stop all flood sensor components"
-#         echo "  restart - Restart all flood sensor components"
-#         echo "  status  - Show running status"
-#         exit 1
-#         ;;
-# esac
 
 
 # === EXECUTION MENU ===
