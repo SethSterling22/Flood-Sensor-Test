@@ -32,7 +32,10 @@ task = 'dwDiJ0dymXPd93kvlF9S'
 sub_task = 'qwiUq7XqNK9bp6crSDj6'
 
 
-# Configure logging
+# Create Directory
+os.makedirs(LOG_DIR, exist_ok=True)
+
+# === LOGGING SETUP ===
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
