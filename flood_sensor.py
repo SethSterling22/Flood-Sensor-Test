@@ -4,7 +4,7 @@ import os
 import logging
 from utils import get_streamflow_data, set_model_parameters, submit_subtask
 import time
-# import RPi.GPIO as GPIO
+import RPi.GPIO as GPIO
 
 
 ################################
