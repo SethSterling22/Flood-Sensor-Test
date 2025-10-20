@@ -95,9 +95,15 @@ The application is pre-configured with:
 HAY QUE REVISARLO !!!
 
 #### Method 1: Direct Execution
+
+To print the Python Path
 ```bash
-python3 main.py
+which python 
 ``` 
+
+```bash
+path/to/python3 main.py
+```
 
 #### Method 2: Daemon Mode
 

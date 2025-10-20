@@ -29,9 +29,10 @@ GPS_LON = -161.78002508639943   # Replace with Longitude
 LOG_DIR = "./Logs/rain_logs"
 # PID_FILE = "./PID/flood_sensor.pid"
 
+RAINFALL_PIN = int(os.getenv('RAINFALL_SENSOR'))
 
 # === SENSOR SETUP ===
-rain_sensor = Button(os.getenv('RAINFALL_SENSOR')) # Previous 27
+rain_sensor = Button(RAINFALL_PIN) # Previous 27
 
 # Globals to track counts and timing
 count = 0
@@ -40,6 +41,7 @@ current_measurement_file = None
 last_logged_minute = None
 SENSOR_FILE = os.path.join(LOG_DIR, "sensors.csv")
 
+# Create Directory
 os.makedirs(LOG_DIR, exist_ok=True)
 
 # === LOGGING SETUP ===
