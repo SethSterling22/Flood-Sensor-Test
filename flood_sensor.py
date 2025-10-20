@@ -19,7 +19,7 @@ load_dotenv("./Env/.env")         # Tapis credentials
 load_dotenv("./Env/.env.config")  # Config env variables
 
 
-sensor_pin = os.getenv('FLOOD_SENSOR')
+sensor_pin = int(os.getenv('FLOOD_SENSOR'))
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(sensor_pin, GPIO.IN)
 LOG_DIR = "./Logs/flooding_logs"
