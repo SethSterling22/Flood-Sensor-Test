@@ -115,6 +115,22 @@ def listener_job(name, func):
         time.sleep(60)  # Sleep for 1 minute
 
 
+# === Cierre Cooperativo de Hilos ===
+STOP_EVENT = threading.Event()
+
+
+def listener_job(name, func):
+    # Cambiamos while True a while not STOP_EVENT.is_set()
+    while not STOP_EVENT.is_set():
+        data = func()
+        print(f"[{name}] Generated data: {data}")
+        send_to_receiver(name, data)
+        
+        # Usamos wait() en lugar de sleep() para que el hilo pueda ser interrumpido
+        # El hilo espera 60 segundos, pero si STOP_EVENT se activa, espera se rompe inmediatamente.
+        STOP_EVENT.wait(60)
+
+
 # # === START THE PROGRAMS IN THREADS ===
 if __name__ == "__main__":
     t1 = threading.Thread(target=listener_job, args=("Rain Gaunge", rain_gaunge_data))
@@ -125,13 +141,24 @@ if __name__ == "__main__":
 
 
     try:
+        # Espera en un bucle ligero para que la interrupción de teclado funcione bien
         while True:
-            time.sleep(1) 
+            time.sleep(1)
+
     except KeyboardInterrupt:
         logger.info("Stopping all threads...")
+        # 1. Levanta la bandera: Esto rompe los bucles while de listener_job
+        STOP_EVENT.set() 
+        
+    finally:
+        # 2. Espera a que los hilos terminen (join)
+        t1.join()
+        t2.join()
+        
+        # 3. GARANTÍA FINAL: Llama a shutdown después de que los hilos mueren
+        logging.shutdown() 
+        logger.info("All threads stopped. Program exit.")
     
-    logging.shutdown() 
-    
-    t1.join()
-    t2.join()
+    # t1.join()
+    # t2.join()
 
