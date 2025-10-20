@@ -41,15 +41,43 @@ except ValueError:
 
 
 # === LOGGING SETUP ===
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(os.path.join(LOG_DIR,'main.log')),
-        logging.StreamHandler()
-    ]
-)
+
+
+# === LOGGING SETUP (CORREGIDO) ===
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+# 1. Crear el FileHandler manualmente para controlar el buffering
+file_handler = logging.FileHandler(
+    os.path.join(LOG_DIR, 'main.log'),
+    # CLAVE: buffering=1 (line buffering) asegura el registro inmediato después de un salto de línea.
+    buffering=1 
+)
+# 2. Configurar el formato
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(formatter)
+
+# 3. Crear el StreamHandler (para la consola)
+stream_handler = logging.StreamHandler(sys.stdout)
+stream_handler.setFormatter(formatter)
+
+# 4. Asignar los handlers al logger
+logger.addHandler(file_handler)
+logger.addHandler(stream_handler)
+
+
+
+
+
+# logging.basicConfig(
+#     level=logging.INFO,
+#     format='%(asctime)s - %(levelname)s - %(message)s',
+#     handlers=[
+#         logging.FileHandler(os.path.join(LOG_DIR,'main.log')),
+#         logging.StreamHandler()
+#     ]
+# )
+# logger = logging.getLogger(__name__)
 
 
 
@@ -91,7 +119,6 @@ def send_to_receiver(thread_name, data):
 
     finally:
         # Save the Logger buffer
-        logging.shutdown()
         logger.info("Cleanup handled by gpiozero.") 
 
 
@@ -111,5 +138,15 @@ if __name__ == "__main__":
     t1.start()
     t2.start()
 
+
+    try:
+        while True:
+            time.sleep(1) 
+    except KeyboardInterrupt:
+        logger.info("Stopping all threads...")
+    
+    logging.shutdown() 
+    
     t1.join()
     t2.join()
+
