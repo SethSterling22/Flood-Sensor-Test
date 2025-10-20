@@ -1,11 +1,11 @@
 import os
-os.environ["GPIOZERO_PIN_FACTORY"] = "rpigpio"
+#os.environ["GPIOZERO_PIN_FACTORY"] = "rpigpio"
 
 from gpiozero import Button
+import RPi.GPIO as GPIO
 from datetime import datetime, timezone
 import logging
 import csv
-import time
 
 from dotenv import load_dotenv
 
