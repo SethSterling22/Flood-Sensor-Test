@@ -39,45 +39,19 @@ except ValueError:
     RECEIVER_PORT = 4040  # fallback
 
 
+# Create Directory
+os.makedirs(LOG_DIR, exist_ok=True)
 
 # === LOGGING SETUP ===
-
-
-# === LOGGING SETUP (CORREGIDO) ===
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-
-# 1. Crear el FileHandler manualmente para controlar el buffering
-file_handler = logging.FileHandler(
-    os.path.join(LOG_DIR, 'main.log'),
-    # CLAVE: buffering=1 (line buffering) asegura el registro inmediato después de un salto de línea.
-    buffering=1 
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(os.path.join(LOG_DIR,'main.log')),
+        logging.StreamHandler()
+    ]
 )
-# 2. Configurar el formato
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-file_handler.setFormatter(formatter)
-
-# 3. Crear el StreamHandler (para la consola)
-stream_handler = logging.StreamHandler(sys.stdout)
-stream_handler.setFormatter(formatter)
-
-# 4. Asignar los handlers al logger
-logger.addHandler(file_handler)
-logger.addHandler(stream_handler)
-
-
-
-
-
-# logging.basicConfig(
-#     level=logging.INFO,
-#     format='%(asctime)s - %(levelname)s - %(message)s',
-#     handlers=[
-#         logging.FileHandler(os.path.join(LOG_DIR,'main.log')),
-#         logging.StreamHandler()
-#     ]
-# )
-# logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 
@@ -112,14 +86,25 @@ def send_to_receiver(thread_name, data):
             # Waiting for the acknowledgement
             response = s.recv(1024).decode("utf-8")
             print(f"[{thread_name}] Server response: {response}")
+            for handler in logger.handlers:
+                # Si el handler es de archivo, vacía el búfer
+                if isinstance(handler, logging.FileHandler):
+                    handler.flush()
 
     except Exception as e:
-        logging.shutdown() 
-        print(f"[{thread_name}] ⚠️ Error sending data: {e}")
-
+        # Esto asegura que el mensaje de error se registre inmediatamente
+        logger.error(f"[{thread_name}] ⚠️ Error sending data: {e}")
+        for handler in logger.handlers:
+            if isinstance(handler, logging.FileHandler):
+                handler.flush()
+        
     finally:
-        # Save the Logger buffer
-        logger.info("Cleanup handled by gpiozero.") 
+        # En tu caso multihilo, este finally es vital:
+        # Asegura el registro final ANTES de que el hilo termine.
+        logger.info("Cleanup handled by gpiozero.")
+        for handler in logger.handlers:
+            if isinstance(handler, logging.FileHandler):
+                handler.flush()
 
 
 def listener_job(name, func):

@@ -41,8 +41,6 @@ current_measurement_file = None
 last_logged_minute = None
 SENSOR_FILE = os.path.join(LOG_DIR, "sensors.csv")
 
-# Create Directory
-os.makedirs(LOG_DIR, exist_ok=True)
 
 # === LOGGING SETUP ===
 logging.basicConfig(

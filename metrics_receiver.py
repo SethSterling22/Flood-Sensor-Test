@@ -27,6 +27,9 @@ NODE_COUNTER = 0
 LOG_DIR = "./Logs/"
 
 
+# Create Directory
+os.makedirs(LOG_DIR, exist_ok=True)
+
 # === LOGGING SETUP ===
 logging.basicConfig(
     level=logging.INFO,
@@ -54,7 +57,7 @@ def start_server():
                 conn, addr = server_socket.accept()
                 with conn:
                     print(f"📡 Connection stablished from: {addr}")
-
+                    logger.info(f"📡 Connection stablished from: {addr}")
                     # Send signal to the client when connection is stablished
                     conn.sendall(b"READY")
 
