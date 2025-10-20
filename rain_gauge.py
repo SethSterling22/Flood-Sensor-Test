@@ -1,3 +1,9 @@
+"""
+Put something here
+"""
+
+
+
 import os
 #os.environ["GPIOZERO_PIN_FACTORY"] = "rpigpio"
 
@@ -26,13 +32,12 @@ BUCKET_SIZE = 0.2794  # mm per tip, adjust if needed
 # Ver si puedo automatizar la subida de locación geográfica
 GPS_LAT = 60.793241544286595    # Replace with Latitude
 GPS_LON = -161.78002508639943   # Replace with Longitude
-LOG_DIR = "./Logs/rain_logs"
+# LOG_DIR = "./Logs/rain_logs"
 # PID_FILE = "./PID/flood_sensor.pid"
 
-RAINFALL_PIN = int(os.getenv('RAINFALL_SENSOR'))
 
 # === SENSOR SETUP ===
-rain_sensor = Button(RAINFALL_PIN) # Previous 27
+rain_sensor = Button(int(os.getenv('RAINFALL_SENSOR'))) # Previous 27
 
 # Globals to track counts and timing
 count = 0
@@ -43,15 +48,15 @@ SENSOR_FILE = os.path.join(LOG_DIR, "sensors.csv")
 
 
 # === LOGGING SETUP ===
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(os.path.join(LOG_DIR,'rain_gauge_sensor.log')),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
+# logging.basicConfig(
+#     level=logging.INFO,
+#     format='%(asctime)s - %(levelname)s - %(message)s',
+#     handlers=[
+#         logging.FileHandler(os.path.join(LOG_DIR,'rain_gauge_sensor.log')),
+#         logging.StreamHandler()
+#     ]
+# )
+# logger = logging.getLogger(__name__)
 
 # === WRITE PID FILE ===
 # with open(PID_FILE, "w") as f:

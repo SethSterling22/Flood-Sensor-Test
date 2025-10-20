@@ -1,10 +1,11 @@
 import socket
-import threading
-import random
-import signal
+#import threading
+#import random
+#import signal
 import sys
 import time
 import logging
+import os
 
 
 import json
@@ -12,7 +13,6 @@ from datetime import datetime
 
 
 from dotenv import load_dotenv
-import os
 
 
 # === ENVIRONMENT  VARIABLES ===
@@ -22,7 +22,7 @@ load_dotenv("./Env/.env.config")  # Config env variables
 HOST = "0.0.0.0"
 PORT = int(os.getenv("RECEIVER_PORT") or 4040)
 
-Nodes = {}
+NODES = {}
 NODE_COUNTER = 0
 LOG_DIR = "./Logs/"
 
@@ -135,19 +135,19 @@ if __name__ == "__main__":
 # # Manejo de los clientes
 # def handle_client(client_socket, client_address):
 #     global server_running
-    
+
 #     try:
 #         print(f"Nueva conexión desde {client_address}")
 
 #         # Asignar el cliente a una sesión
 #         session_id, is_new_session = session_manager.add_client(client_socket)
-        
+
 #         if is_new_session:
 #             print(f"Esperando al segundo cliente para la sesión {session_id}")
 #             client_socket.send("Esperando al segundo cliente...".encode())
 #         else:
 #             print(f"Sesión {session_id} iniciada con dos clientes")
-            
+
 
 
 #             # Asignar aleatoriamente el primer turno
@@ -231,7 +231,8 @@ if __name__ == "__main__":
 #     port = os.getenv('RECEIVER_PORT')
     
 
-#     # Ejecutar los servicios de flood_sensor.py y rain_gauge.py y quedarse esperando a alguna respuesta para invocar a sus respectivas funciones que hagan fetch al Receiver !!!
+#     # Ejecutar los servicios de flood_sensor.py y rain_gauge.py y quedarse esperando 
+#       a alguna respuesta para invocar a sus respectivas funciones que hagan fetch al Receiver !!!
 #     try:
 #         server_socket.bind((host, port))
 #         server_socket.listen(5)

@@ -1,11 +1,17 @@
+"""
+Put something here
+"""
+
+
+
 import socket
 import threading
-import signal
+#import signal
 import sys
 import time
 import logging
-import csv
-
+#import csv
+import os
 
 # Packing Libraries 
 import json
@@ -13,7 +19,6 @@ from datetime import datetime
 
 
 from dotenv import load_dotenv
-import os
 
 
 
@@ -32,11 +37,7 @@ LOG_DIR = "./Logs/"
 
 # Use Localhost if run.sh is executed as ExitNode
 RECEIVER_HOST =  "127.0.0.1" if len(sys.argv) > 1 else os.getenv('RECEIVER_HOST')
-port_env = os.getenv("RECEIVER_PORT", "4040")
-try:
-    RECEIVER_PORT = int(port_env)
-except ValueError:
-    RECEIVER_PORT = 4040  # fallback
+RECEIVER_PORT = int(os.getenv("RECEIVER_PORT", "4040"))
 
 
 # Create Directory
@@ -68,6 +69,8 @@ def send_to_receiver(thread_name, data):
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             print(f"📡 Connecting to: {RECEIVER_HOST}:{RECEIVER_PORT}")
+            logger.info(f"📡 Connecting to: {RECEIVER_HOST}:{RECEIVER_PORT}")
+
             s.connect((RECEIVER_HOST, RECEIVER_PORT))
 
             # Wait for the Connection Server response
@@ -86,45 +89,40 @@ def send_to_receiver(thread_name, data):
             # Waiting for the acknowledgement
             response = s.recv(1024).decode("utf-8")
             print(f"[{thread_name}] Server response: {response}")
-            for handler in logger.handlers:
-                # Si el handler es de archivo, vacía el búfer
-                if isinstance(handler, logging.FileHandler):
-                    handler.flush()
-
+            logger.info(f"[{thread_name}] Server response: {response}")
+            
     except Exception as e:
         # Esto asegura que el mensaje de error se registre inmediatamente
+        print(f"[{thread_name}] ⚠️ Error sending data: {e}")
         logger.error(f"[{thread_name}] ⚠️ Error sending data: {e}")
-        for handler in logger.handlers:
-            if isinstance(handler, logging.FileHandler):
-                handler.flush()
-        
-    finally:
-        # En tu caso multihilo, este finally es vital:
-        # Asegura el registro final ANTES de que el hilo termine.
-        logger.info("Cleanup handled by gpiozero.")
-        for handler in logger.handlers:
-            if isinstance(handler, logging.FileHandler):
-                handler.flush()
 
 
-def listener_job(name, func):
-    while True:
-        data = func()
-        print(f"[{name}] Generated data: {data}")
-        send_to_receiver(name, data)
-        time.sleep(60)  # Sleep for 1 minute
+# def listener_job(name, func):
+#     while True:
+#         data = func()
+#         print(f"[{name}] Generated data: {data}")
+#         send_to_receiver(name, data)
+#         time.sleep(60)  # Sleep for 1 minute
 
 
 # === Cierre Cooperativo de Hilos ===
 STOP_EVENT = threading.Event()
 
 
-def listener_job(name, func):
+def listener_job(thread_name, func):
     # Cambiamos while True a while not STOP_EVENT.is_set()
     while not STOP_EVENT.is_set():
         data = func()
-        print(f"[{name}] Generated data: {data}")
-        send_to_receiver(name, data)
+        print(f"[{thread_name}] Generated data: {data}")
+
+        if thread_name == "Flood Sensor":
+            if data == "Detected":
+                logger.info("Flooding has been DETECTED and sent to submmit the Model!")
+            elif data == "No Detected":
+                logger.info("No flooding detected")
+
+
+        send_to_receiver(thread_name, data)
         
         # Usamos wait() en lugar de sleep() para que el hilo pueda ser interrumpido
         # El hilo espera 60 segundos, pero si STOP_EVENT se activa, espera se rompe inmediatamente.
@@ -154,11 +152,12 @@ if __name__ == "__main__":
         # 2. Espera a que los hilos terminen (join)
         t1.join()
         t2.join()
-        
+
         # 3. GARANTÍA FINAL: Llama a shutdown después de que los hilos mueren
         logging.shutdown() 
         logger.info("All threads stopped. Program exit.")
-    
+        sys.exit(0)
+
     # t1.join()
     # t2.join()
 
