@@ -73,6 +73,7 @@ def send_to_receiver(thread_name, data):
 
             if handshake != "READY":
                 print(f"[{thread_name}] ⚠️ Server not ready, handshake failed: {handshake}")
+                logger.info(f"[{thread_name}] ⚠️ Server not ready, handshake failed: {handshake}")
                 return
             print(f"[{thread_name}] ✅ Handshake OK")
 
@@ -82,10 +83,16 @@ def send_to_receiver(thread_name, data):
 
             # Waiting for the acknowledgement
             response = s.recv(1024).decode("utf-8")
-            print(f"[{thread_name}] Respuesta del servidor: {response}")
+            print(f"[{thread_name}] Server response: {response}")
 
     except Exception as e:
-        print(f"[{thread_name}] ⚠️ Error enviando datos: {e}")
+        logging.shutdown() 
+        print(f"[{thread_name}] ⚠️ Error sending data: {e}")
+
+    finally:
+        # Save the Logger buffer
+        logging.shutdown()
+        logger.info("Cleanup handled by gpiozero.") 
 
 
 def listener_job(name, func):

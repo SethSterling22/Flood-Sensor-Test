@@ -84,7 +84,10 @@ def get_flood_data():
                 return True
     except Exception as e:
         print(f"\n❌ An error has occurred: \n\n{str(e)}")
+        logging.shutdown() 
         sys.exit(0)
+    finally:
+        logging.shutdown()
 
 
 # def main():
