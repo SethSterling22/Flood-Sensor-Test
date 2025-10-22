@@ -13,6 +13,7 @@ information that it have in queue to send that day
 """
 
 import os
+import sys
 #os.environ["GPIOZERO_PIN_FACTORY"] = "rpigpio"
 
 # from datetime import datetime, timezone
@@ -47,6 +48,8 @@ rain_sensor = Button(int(os.getenv('RAINFALL_SENSOR'))) # Previous 27
 
 # === GLOBALS SETUP to track counts and timing ===
 count = 0
+
+# También para main
 current_hour_str = None
 current_measurement_file = None
 last_logged_minute = None
@@ -175,11 +178,9 @@ def get_rain_data():
         return minute_tips
 
 
-    except KeyboardInterrupt:
-        logger.info("🌧️ Rain gauge monitoring stopped by user.")
-    finally:
-        # Clean GPIO
-        logger.info("Cleanup handled by gpiozero.")
+    except Exception as e:
+        print(f"\n❌ An error has occurred: \n\n{str(e)}")
+        sys.exit(0)
 
 # OLD !!!
 # === LOGGING SETUP ===

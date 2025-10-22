@@ -29,7 +29,7 @@ from dotenv import load_dotenv
 
 ##############################################
 # from rain_gauge import get_data as rain_gauge_data
-rom rain_gauge import get_rain_data as rain_gauge_data
+from rain_gauge import get_rain_data as rain_gauge_data
 #from flood_sensor import get_data as flood_sensor_data
 from flood_sensor import get_flood_data as flood_sensor_data
 ##############################################
@@ -135,8 +135,8 @@ def listener_job(thread_name, func):
 
 # # === START THE PROGRAMS IN THREADS ===
 if __name__ == "__main__":
-    t1 = threading.Thread(target=listener_job, args=("Rain Gaunge", rain_gauge_data))
-    t2 = threading.Thread(target=listener_job, args=("Flood Sensor", flood_sensor_data))
+    t1 = threading.Thread(target=listener_job, args=("🌧️ Rain Gauge", rain_gauge_data))
+    t2 = threading.Thread(target=listener_job, args=("💧 Flood Sensor", flood_sensor_data))
 
     t1.start()
     t2.start()

@@ -12,7 +12,7 @@ import logging
 # from tapipy.tapis import Tapis
 
 ################################
-# import time
+import time
 # import random
 ################################
 
