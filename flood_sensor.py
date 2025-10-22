@@ -1,20 +1,24 @@
 """
-Put something here
+This program will serve as thread of "main.py" to detect
+water with a liquid sensor. If the Voltage is "HIGH"
+it means there's no water detected, when the Voltage is
+"LOW" will send a signal to "main.py" and then to
+"metrics_receiver.py" so submmit a job to MINT 
 """
 
 import os
 import sys
-# import logging
+import logging
 # from tapipy.tapis import Tapis
 
 ################################
-import time
-import random
+# import time
+# import random
 ################################
 
 from dotenv import load_dotenv
-# from utils import get_streamflow_data, set_model_parameters, submit_subtask
 import RPi.GPIO as GPIO
+# from utils import get_streamflow_data, set_model_parameters, submit_subtask
 
 
 
@@ -47,18 +51,20 @@ GPIO.setup(sensor_pin, GPIO.IN)
 #         logging.StreamHandler()
 #     ]
 # )
-# logger = logging.getLogger(__name__)
+
+# === LOGGING SETUP ===
+logger = logging.getLogger(__name__)
 
 
 ###########################################################
 # Only for testing
-def get_data():
-    time.sleep(10)  # simula lectura o trabajo
-    return {
-        "temperature": random.uniform(20, 30),
-        "humidity": random.uniform(40, 60),
-        "status": random.choice(["OK", "WARN"])
-    }
+# def get_data():
+#     time.sleep(10)  # simula lectura o trabajo
+#     return {
+#         "temperature": random.uniform(20, 30),
+#         "humidity": random.uniform(40, 60),
+#         "status": random.choice(["OK", "WARN"])
+#     }
 
 ###########################################################
 
@@ -74,17 +80,19 @@ def get_flood_data():
 
             # HIGH = No water detected -> do nothing
             if sensor_state == GPIO.HIGH:
-                time.sleep(5) # 5 seconds
+                time.sleep(5) # Wait 5 seconds to try to detect again
                 
                 logger_countdown += 5
                 if logger_countdown >= 60:
                     # logger.info("No flooding detected")
-                    return "No Detected"
+                    logger.info("No flooding detected")
+                    return "Not Detected"
                     logger_countdown = 0
             else:
-                # logger.info("Flooding has been DETECTED and sent to submmit the Model!")
                 # Return if Flood is DETECTED
+                logger.info("Flooding has been DETECTED and sent to submmit the Model!")
                 return "Detected"
+
     except Exception as e:
         print(f"\n❌ An error has occurred: \n\n{str(e)}")
         sys.exit(0)

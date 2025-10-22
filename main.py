@@ -1,5 +1,11 @@
 """
-Put something here
+This program deploys two threads to "flood_sensor.py" and 
+"rain_gauge.py" to collect the various signals they send, 
+while also synchronizing and packaging that information. 
+It also connects to the server running "metrics_receiver.py," 
+either locally or externally. "main.py" maintains the connection 
+to the server and sends the previously packaged information 
+from both sensors.
 """
 
 
@@ -21,10 +27,9 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 
-
 ##############################################
-from rain_gauge import get_data as rain_gaunge_data
-# from rain_gauge import get_rain_data as rain_gaunge_data
+# from rain_gauge import get_data as rain_gauge_data
+rom rain_gauge import get_rain_data as rain_gauge_data
 #from flood_sensor import get_data as flood_sensor_data
 from flood_sensor import get_flood_data as flood_sensor_data
 ##############################################
@@ -115,23 +120,22 @@ def listener_job(thread_name, func):
         data = func()
         print(f"[{thread_name}] Generated data: {data}")
 
-        if thread_name == "Flood Sensor":
-            if data == "Detected":
-                logger.info("Flooding has been DETECTED and sent to submmit the Model!")
-            elif data == "No Detected":
-                logger.info("No flooding detected")
+        # if thread_name == "Flood Sensor":
+        #     if data == "Detected":
+        #         logger.info("Flooding has been DETECTED and sent to submmit the Model!")
+        #     elif data == "Not Detected":
+        #         logger.info("No flooding detected")
 
 
         send_to_receiver(thread_name, data)
         
-        # Usamos wait() en lugar de sleep() para que el hilo pueda ser interrumpido
-        # El hilo espera 60 segundos, pero si STOP_EVENT se activa, espera se rompe inmediatamente.
+        # Make all the signals wait for 1 minute to be sent again
         STOP_EVENT.wait(60)
 
 
 # # === START THE PROGRAMS IN THREADS ===
 if __name__ == "__main__":
-    t1 = threading.Thread(target=listener_job, args=("Rain Gaunge", rain_gaunge_data))
+    t1 = threading.Thread(target=listener_job, args=("Rain Gaunge", rain_gauge_data))
     t2 = threading.Thread(target=listener_job, args=("Flood Sensor", flood_sensor_data))
 
     t1.start()
