@@ -164,7 +164,7 @@ def get_rain_data():
         rain_sensor.when_pressed = bucket_tipped
         
         # Wait a minute
-        time.sleep(60)
+        #time.sleep(60)
         
         # Count the total number in the 60 seconds interval
         current_count = count

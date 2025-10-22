@@ -118,7 +118,8 @@ def listener_job(thread_name, func):
     # Cambiamos while True a while not STOP_EVENT.is_set()
     while not STOP_EVENT.is_set():
         data = func()
-        print(f"[{thread_name}] Generated data: {data}")
+        print(f"[{thread_name}] Retrieved data: {data}")
+        logger.info(f"[{thread_name}] Retrieved data: {data}")
 
         # if thread_name == "Flood Sensor":
         #     if data == "Detected":

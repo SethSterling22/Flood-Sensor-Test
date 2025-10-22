@@ -21,7 +21,7 @@ This application monitors a physical flood sensor connected to a Raspberry Pi an
 ### Hardware Requirements
 
 - Raspberry Pi (any model with GPIO support)
-- Flood sensor connected to GPIO pin 13
+- Flood Sensor connected to GPIO pin 13
 - Rainfall Sensor connected to GPIO pin 6
 - Internet connection for API access
 - SE DEBEN AGREGAR LOS DIFERENTES SENSORES !!!
@@ -92,39 +92,47 @@ The application is pre-configured with:
 
 ### Running the Application
 
-HAY QUE REVISARLO !!!
+The use of sudo is mandatory due to the use of GPIO pins 
+and the different dependencies.
 
 #### Method 1: Direct Execution
 
-To print the Python Path
+To get the Python Path
 ```bash
 which python 
 ``` 
+using the previous path
+```bash
+# To run as a Node pointing to an external server
+sudo path/to/python3 main.py
+```
 
 ```bash
-path/to/python3 main.py
+# To run as an ExitNode pointing to localhost
+sudo path/to/python3 main.py {any_arg}
 ```
+
 
 #### Method 2: Daemon Mode
 
 **Start the daemon:**
 ```bash
-./run.sh start  { Server | Node  | ExitNode }
+sudo ./run.sh start  { Server | Node  | ExitNode }
 ```
 
 **Check status:**
 ```bash
-./run.sh status
+sudo ./run.sh status
 ```
 
 **Stop the daemon:**
 ```bash
-./run.sh stop
+sudo ./run.sh stop
 ```
 
 **Restart the daemon:**
 ```bash
-./run.sh restart
+sudo ./run.sh restart
 ```
 
 ## How It Works

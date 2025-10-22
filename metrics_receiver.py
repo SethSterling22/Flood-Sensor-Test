@@ -1,3 +1,7 @@
+"""
+Description very descriptive
+"""
+
 import socket
 #import threading
 #import random
@@ -43,6 +47,13 @@ logger = logging.getLogger(__name__)
 
 
 def start_server():
+    """
+    This function is responsible for synchronizing the nodes, 
+    receiving their information and sending it to "metrics_uploader.py" 
+    to be uploaded to Upstream-dso and create Subtask in Mint based on 
+    the Streamflow calculated with the functions of "utils.py".
+    """
+
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
 
@@ -69,7 +80,9 @@ def start_server():
                     try:
                         message = json.loads(data.decode("utf-8"))
                         print(f"🕓 {datetime.now()} - Received Data:")
+                        
                         print(json.dumps(message, indent=4))
+                        logger.info(json.dumps(message, indent=4))
                         conn.sendall(b"OK")  # Confirmación final
                     except json.JSONDecodeError:
                         print("❌ Error: Received Data is not a valid JSON format.")
