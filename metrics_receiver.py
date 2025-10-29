@@ -10,9 +10,9 @@ import os
 import sys
 import time
 import json
+import queue
 import socket
 import logging
-import queue
 import threading
 from datetime import datetime
 from dotenv import load_dotenv
