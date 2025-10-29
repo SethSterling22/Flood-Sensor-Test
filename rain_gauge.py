@@ -155,7 +155,6 @@ def get_rain_data():
     global count
     initial_count = count
 
-
     logger.info("🌧️ Starting rain gauge monitor...")
     # init_sensor_file_if_needed()
 
