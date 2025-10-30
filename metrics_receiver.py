@@ -100,20 +100,176 @@ logger = logging.getLogger(__name__)
 
 
 
-def handle_node_connection(conn, addr):
-    """
-    Manage each NODE individually and send
-    send its data to process and upload
-    """
+# def handle_node_connection(conn, addr):
+#     """
+#     Manage each NODE individually and send
+#     send its data to process and upload
+#     """
 
+#     node_id = None
+#     try:
+#         # Step 1: Node identification
+#         conn.sendall(b"NODE_ID_REQUEST")
+#         # conn.sendall(b"READY")
+#         node_id_response = conn.recv(1024).decode('utf-8').strip()
+        
+#         if not node_id_response:
+#             raise ValueError("Empty node ID received")
+        
+#         node_id = node_id_response
+#         with PROCESSING_LOCK:
+#             NODES[node_id] = {
+#                 'conn': conn,
+#                 'addr': addr,
+#                 'last_active': time.time(),
+#                 'status': 'connected'
+#             }
+        
+#         logger.info(f"🆔 Node {node_id} connected from {addr}")
+#         conn.sendall(b"READY")
+#         #conn.sendall(b"OK_AUTH") 
+
+#         # Step 2: Data retreival 
+#         while True:
+#             data = conn.recv(4096)
+#             if not data:
+#                 logger.warning(f"📥 Not received any data from {node_id}: {message['thread']}")
+#                 break
+
+#             current_time = time.time()
+#             try:
+#                 message = json.loads(data.decode('utf-8'))
+#                 logger.info(f"📥 Received data from {node_id}: {message['thread']}")
+
+#                 # Basic message validation
+#                 if 'thread' not in message or 'data' not in message:
+#                     raise ValueError("Invalid message format")
+
+#                 # Update current activity
+#                 with PROCESSING_LOCK:
+#                     NODES[node_id]['last_active'] = current_time
+
+#                 #################################################################
+#                 # Add to the processing queue
+#                 NODE_QUEUE.put({
+#                     'node_id': node_id,
+#                     'message': message,
+#                     'timestamp': current_time
+#                 })
+#                 #################################################################
+
+#                 # Response
+#                 conn.sendall(b"OK_QUEUED")
+
+#             except (json.JSONDecodeError, ValueError) as e:
+#                 logger.error(f"❌ Error processing data from {node_id}: {str(e)}")
+#                 conn.sendall(b"BAD_FORMAT")
+
+#     except ConnectionResetError:
+#         logger.warning(f"⚠️ Connection reset by node {node_id or addr}")
+#     except Exception as e:
+#         logger.error(f"🔴 Error with node {node_id or addr}: {str(e)}")
+#     finally:
+#         if node_id:
+#             with PROCESSING_LOCK:
+#                 if node_id in NODES:
+#                     del NODES[node_id]
+#         conn.close()
+#         logger.info(f"🚪 Node {node_id or addr} disconnected")
+
+
+# def process_node_data():
+#     """
+#     Procesa los datos de los nodos en orden de llegada
+#     """
+    
+#     while True:
+#         try:
+#             # Obtener el siguiente elemento de la cola (bloqueante)
+#             item = NODE_QUEUE.get()
+#             node_id = item['node_id']
+#             message = item['message']
+#             timestamp = item['timestamp']
+
+#             #################################################################
+#             # PROCESAMIENTO!!! ----> Send it to Upload
+#             # Simular procesamiento (aquí iría tu lógica real)
+#             logger.info(f"🔧 Processing {message['thread']} from {node_id}")
+#             logger.info(f"Data: {message['data']}")
+#             time.sleep(1)  # Simula tiempo de procesamiento
+#             #################################################################
+            
+#             # Mark as completed
+#             NODE_QUEUE.task_done()
+#             logger.info(f"✅ Processed {message['thread']} from {node_id}")
+
+#         except Exception as e:
+#             logger.error(f"❌ Error processing data: {str(e)}")
+
+# def monitor_nodes():
+#     """
+#     Manage the interactive NODES and reject the ones with timeout
+#     """
+
+#     while True:
+#         time.sleep(5)  # Check out each 5 seconds
+#         current_time = time.time()
+#         inactive_nodes = []
+
+#         with PROCESSING_LOCK:
+#             for node_id, node_info in NODES.items():
+#                 if current_time - node_info['last_active'] > 90:  # 15 seg timeout
+#                     inactive_nodes.append(node_id)
+
+#             for node_id in inactive_nodes:
+#                 logger.warning(f"⏰ Timeout for node {node_id}, disconnecting")
+#                 try:
+#                     if 'conn' in NODES[node_id]:
+#                         NODES[node_id]['conn'].sendall(b"BAD_TIMEOUT")
+#                         NODES[node_id]['conn'].close()
+#                 except:
+#                     pass
+#                 del NODES[node_id]
+
+# def start_server():
+#     """Starts the principal service"""
+#     try:
+#         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
+#             server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+#             server_socket.bind((HOST, PORT))
+#             server_socket.listen(5)  # Queue of pending connections
+#             logger.info(f"🟢 Server started on {HOST}:{PORT}")
+
+#             # Start auxiliary threads
+#             threading.Thread(target=process_node_data, daemon=True).start()
+#             threading.Thread(target=monitor_nodes, daemon=True).start()
+
+#             while True:
+#                 conn, addr = server_socket.accept()
+#                 threading.Thread(target=handle_node_connection, args=(conn, addr)).start()
+
+#     except KeyboardInterrupt:
+#         logger.info("🛑 Server stopped by user")
+#     finally:
+#         sys.exit(0)
+
+# if __name__ == "__main__":
+#     start_server()
+
+
+
+
+
+def handle_node_connection(conn, addr):
+    """Manage each node connection and handle its data"""
     node_id = None
     try:
         # Step 1: Node identification
         conn.sendall(b"NODE_ID_REQUEST")
         node_id_response = conn.recv(1024).decode('utf-8').strip()
         
-        if not node_id_response:
-            raise ValueError("Empty node ID received")
+        if not node_id_response.startswith("NODE_"):
+            raise ValueError("Invalid node ID format")
         
         node_id = node_id_response
         with PROCESSING_LOCK:
@@ -127,10 +283,11 @@ def handle_node_connection(conn, addr):
         logger.info(f"🆔 Node {node_id} connected from {addr}")
         conn.sendall(b"READY")
 
-        # Step 2: Data retreival 
+        # Step 2: Data reception loop
         while True:
             data = conn.recv(4096)
             if not data:
+                logger.warning(f"⚠️ No data received from {node_id}")
                 break
 
             current_time = time.time()
@@ -138,32 +295,38 @@ def handle_node_connection(conn, addr):
                 message = json.loads(data.decode('utf-8'))
                 logger.info(f"📥 Received data from {node_id}: {message['thread']}")
 
-                # Basic message validation
-                if 'thread' not in message or 'data' not in message:
-                    raise ValueError("Invalid message format")
+                # Validate message format
+                if not all(key in message for key in ['thread', 'data', 'timestamp']):
+                    raise ValueError("Missing required fields in message")
+                
+                if message['thread'] not in ['🌧️ Rain Gauge', '💧 Flood Sensor']:
+                    raise ValueError("Invalid sensor type")
 
-                # Update current activity
+                # Update node activity
                 with PROCESSING_LOCK:
                     NODES[node_id]['last_active'] = current_time
 
-                # Add to the processing queue
+                # Add to processing queue
                 NODE_QUEUE.put({
                     'node_id': node_id,
                     'message': message,
                     'timestamp': current_time
                 })
 
-                # Response
+                # Acknowledge receipt
                 conn.sendall(b"OK_QUEUED")
 
             except (json.JSONDecodeError, ValueError) as e:
-                logger.error(f"❌ Error processing data from {node_id}: {str(e)}")
+                logger.error(f"❌ Invalid data from {node_id}: {str(e)}")
                 conn.sendall(b"BAD_FORMAT")
+            except Exception as e:
+                logger.error(f"🔴 Unexpected error with {node_id}: {str(e)}")
+                raise
 
     except ConnectionResetError:
         logger.warning(f"⚠️ Connection reset by node {node_id or addr}")
     except Exception as e:
-        logger.error(f"🔴 Error with node {node_id or addr}: {str(e)}")
+        logger.error(f"🔴 Connection error with {node_id or addr}: {str(e)}")
     finally:
         if node_id:
             with PROCESSING_LOCK:
@@ -174,43 +337,43 @@ def handle_node_connection(conn, addr):
 
 
 def process_node_data():
-    """
-    Procesa los datos de los nodos en orden de llegada
-    """
-    
+    """Process node data from the queue"""
     while True:
         try:
-            # Obtener el siguiente elemento de la cola (bloqueante)
             item = NODE_QUEUE.get()
             node_id = item['node_id']
             message = item['message']
-            timestamp = item['timestamp']
-
-            # PROCESAMIENTO!!! -> Send it to Upload
-            # Simular procesamiento (aquí iría tu lógica real)
-            logger.info(f"🔧 Processing {message['thread']} from {node_id}")
-            time.sleep(1)  # Simula tiempo de procesamiento
             
-            # Mark as completed
+            logger.info(f"🔧 Processing {message['thread']} from {node_id}")
+            
+            #############################################################3
+            # Process based on sensor type
+            if message['thread'] == '🌧️ Rain Gauge':
+                logger.info(f"🌧️ Rain data: {message['data']}")
+                # Rain processing 
+                
+            elif message['thread'] == '💧 Flood Sensor':
+                logger.info(f"💧 Flood data: {message['data']}")
+                # Flood processing
+            #############################################################
+            
             NODE_QUEUE.task_done()
-            logger.info(f"✅ Processed {message['thread']} from {node_id}")
+            logger.info(f"✅ Completed processing {message['thread']} from {node_id}")
 
         except Exception as e:
-            logger.error(f"❌ Error processing data: {str(e)}")
+            logger.error(f"❌ Processing error: {str(e)}")
+
 
 def monitor_nodes():
-    """
-    Manage the interactive NODES and reject the ones with timeout
-    """
-
+    """Monitor node connections and handle timeouts"""
     while True:
-        time.sleep(5)  # Check out each 5 seconds
+        time.sleep(5)  # Check every 5 seconds
         current_time = time.time()
         inactive_nodes = []
 
         with PROCESSING_LOCK:
             for node_id, node_info in NODES.items():
-                if current_time - node_info['last_active'] > 15:  # 15 seg timeout
+                if current_time - node_info['last_active'] > 120:  # 2 minute timeout
                     inactive_nodes.append(node_id)
 
             for node_id in inactive_nodes:
@@ -223,16 +386,17 @@ def monitor_nodes():
                     pass
                 del NODES[node_id]
 
+
 def start_server():
-    """Starts the principal service"""
+    """Start the main server"""
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
             server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             server_socket.bind((HOST, PORT))
-            server_socket.listen(5)  # Queue of pending connections
+            server_socket.listen(5)
             logger.info(f"🟢 Server started on {HOST}:{PORT}")
 
-            # Start auxiliary threads
+            # Start worker threads
             threading.Thread(target=process_node_data, daemon=True).start()
             threading.Thread(target=monitor_nodes, daemon=True).start()
 
@@ -242,144 +406,17 @@ def start_server():
 
     except KeyboardInterrupt:
         logger.info("🛑 Server stopped by user")
+    except Exception as e:
+        logger.error(f"🔴 Server error: {str(e)}")
     finally:
         sys.exit(0)
+
 
 if __name__ == "__main__":
     start_server()
 
-# # Diccionario para mantener las sesiones de pares
-# sessions = {}
-# server_running = True
 
-# ###############################################################
-# class SessionManager:
-#     def __init__(self):
-#         self.sessions = {}
-#         self.counter = 1
-#         self.lock = threading.Lock()
-
-#     def add_client(self, client_socket):
-#         with self.lock:
-#             if len(self.sessions) % 2 == 0:
-#                 session_id = self.counter
-#                 self.sessions[session_id] = [client_socket]
-#                 self.counter += 1
-#                 return session_id, True  # Nueva sesión
-#             else:
-#                 session_id = self.counter - 1
-#                 self.sessions[session_id].append(client_socket)
-
-#                 self._send_seed_to_session(session_id) # Envío de semilla a las sesiones
-#                 return session_id, False  # Sesión completada
-
-#     def _send_seed_to_session(self, session_id):
-#         """Envía la semilla a ambos clientes de la sesión"""
-#         if session_id in self.sessions and len(self.sessions[session_id]) == 2:
-#             # seed_message = f"SEMILLA:{genSeed()}".encode()
-#             for client in self.sessions[session_id]:
-#                 try:
-#                     client.send(seed_message)
-#                 except Exception as e:
-#                     print(f"Error enviando semilla: {e}")
-
-#     def remove_client(self, session_id, client_socket):
-#         with self.lock:
-#             if session_id in self.sessions:
-#                 if client_socket in self.sessions[session_id]:
-#                     self.sessions[session_id].remove(client_socket)
-#                     if not self.sessions[session_id]:
-#                         del self.sessions[session_id]
-
-# session_manager = SessionManager()
-# ###############################################################
-
-
-# ###############################################################
-# # Manejo de los clientes
-# def handle_client(client_socket, client_address):
-#     global server_running
-
-#     try:
-#         print(f"Nueva conexión desde {client_address}")
-
-#         # Asignar el cliente a una sesión
-#         session_id, is_new_session = session_manager.add_client(client_socket)
-
-#         if is_new_session:
-#             print(f"Esperando al segundo cliente para la sesión {session_id}")
-#             client_socket.send("Esperando al segundo cliente...".encode())
-#         else:
-#             print(f"Sesión {session_id} iniciada con dos clientes")
-
-
-
-#             # Asignar aleatoriamente el primer turno
-#             first_turn = random.choice([0, 1])
-#             session_manager.sessions[session_id][first_turn].send("Sesión iniciada. Es tu turno.".encode())
-#             session_manager.sessions[session_id][1 - first_turn].send("Sesión iniciada. Esperando tu turno...".encode())
-
-#         # Manejar la comunicación entre los clientes
-#         while server_running:
-#             try:
-#                 message = client_socket.recv(1024).decode()
-#                 if not message:
-#                     break
-
-#                 print(f"Mensaje recibido en la sesión {session_id}: {message}")
-
-#                 # Enviar el mensaje al otro cliente en la sesión
-#                 if session_id in session_manager.sessions:
-#                     other_index = 1 if client_socket == session_manager.sessions[session_id][0] else 0
-#                     if other_index < len(session_manager.sessions[session_id]):
-#                         session_manager.sessions[session_id][other_index].send(message.encode())
-
-#                     # Manejo de turnos
-#                     if message == "P":
-#                         session_manager.sessions[session_id][other_index].send("Es tu turno.".encode())
-
-#             except (ConnectionResetError, ConnectionAbortedError):
-#                 print(f"Cliente {client_address} desconectado")
-#                 break
-#             except Exception as e:
-#                 print(f"Error en la sesión {session_id}: {str(e)}")
-#                 break
-
-#     finally:
-#         # Eliminar el cliente de la sesión
-#         session_manager.remove_client(session_id, client_socket)
-#         client_socket.close()
-#         print(f"Conexión con {client_address} cerrada")
-# ###############################################################
-
-
-# ###############################################################
-# # Handler para el cierre del servidor y no quede el puerto vivo
-# def signal_handler(sig, frame):
-#     global server_running
-#     print("\nRecibida señal de terminación, cerrando servidor...")
-#     server_running = False
-    
-#     # Forzar cierre del socket principal
-#     if 'server_socket' in globals():
-#         try:
-#             # Crear conexión temporal para desbloquear accept()
-#             temp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-#             temp_socket.connect(("127.0.0.1", 12345))
-#             temp_socket.close()
-#         except:
-#             pass
-        
-#         try:
-#             server_socket.close()
-#             print("Socket del servidor cerrado correctamente")
-#         except Exception as e:
-#             print(f"Error cerrando socket del servidor: {str(e)}")
-    
-#     sys.exit(0)
-# ###############################################################
-
-
+# OLD VERSION
 # ###############################################################
 # def start_weather_services():
     

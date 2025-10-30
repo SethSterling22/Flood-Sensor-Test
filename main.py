@@ -40,7 +40,7 @@ os.makedirs(LOG_DIR, exist_ok=True)
 # Use Localhost if run.sh is executed as ExitNode
 RECEIVER_HOST =  "127.0.0.1" if len(sys.argv) > 1 else os.getenv('RECEIVER_HOST')
 RECEIVER_PORT = int(os.getenv("RECEIVER_PORT", "4040"))
-NODE_ID = os.getenv("NODE_ID", "default_node")
+NODE_ID = f"NODE_{os.getenv('NODE_PREFIX', 'default')}"  # Ensure NODE_ prefix
 
 
 # === LOGGING SETUP ===
@@ -59,10 +59,93 @@ STOP_EVENT = threading.Event()
 
 
 # === SEND INFORMATION TO THE SERVER ===
-def send_to_receiver(thread_name, data):
-    """Collect data and send it to the server"""
+# def send_to_receiver(thread_name, data):
+#     """Collect data and send it to the server"""
 
-    # Packet structure
+#     # Packet structure
+#     payload = {
+#         "thread": thread_name,
+#         "timestamp": datetime.now().isoformat(),
+#         "data": data
+#     }
+
+#     try:
+#         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+#             s.settimeout(10)  # Connection timeout
+            
+#             logger.info(f"📡 Connecting to {RECEIVER_HOST}:{RECEIVER_PORT}")
+#             s.connect((RECEIVER_HOST, RECEIVER_PORT))
+
+#             # Step 1: Identification
+#             id_request = s.recv(1024)
+#             if id_request != b"NODE_ID_REQUEST":
+#                 logger.error("⚠️ Protocol error: expected ID request")
+#                 return
+
+#             s.sendall(NODE_ID.encode('utf-8'))
+#             response = s.recv(1024)
+            
+#             if response != b"READY":
+#                 logger.error(f"⚠️ Server not ready: {response.decode()}")
+#                 return
+
+#             # Step 2: Send data
+#             s.sendall(json.dumps(payload).encode('utf-8'))
+#             final_response = s.recv(1024).decode('utf-8')
+            
+#             if final_response == "OK_QUEUED":
+#                 logger.info(f"✅ Data queued for processing ({thread_name})")
+#             else:
+#                 logger.warning(f"⚠️ Server response: {final_response}")
+
+#     except socket.timeout:
+#         logger.error("⌛ Connection timeout")
+#     except Exception as e:
+#         logger.error(f"🔴 Connection error: {str(e)}")
+
+
+# # === THREADS MANAGER ===
+# def listener_job(thread_name, func):
+#     """Sync the data from threads"""
+#     while not STOP_EVENT.is_set():
+#         try:
+#             data = func()
+#             logger.info(f"[{thread_name}] Retrieved data: {data}")
+#             send_to_receiver(thread_name, data)
+#         except Exception as e:
+#             logger.error(f"[{thread_name}] Error: {str(e)}")
+        
+#         STOP_EVENT.wait(60)  # Wait 60 seconds until STOP_EVENT
+
+
+# # === START THE PROGRAMS IN THREADS ===
+# if __name__ == "__main__":
+#     # Sensor Start
+#     sensors = [
+#         threading.Thread(target=listener_job, args=("🌧️ Rain Gauge", rain_gauge_data)),
+#         threading.Thread(target=listener_job, args=("💧 Flood Sensor", flood_sensor_data))
+#     ]
+
+#     for sensor in sensors:
+#         sensor.start()
+
+#     try:
+#         while True:
+#             time.sleep(1)
+#     except KeyboardInterrupt:
+#         logger.info("🛑 Stopping all threads...")
+#         STOP_EVENT.set()
+#     finally:
+#         for sensor in sensors:
+#             sensor.join()
+#         logger.info("👋 All threads stopped")
+#         sys.exit(0)
+
+
+
+
+def send_to_receiver(thread_name, data):
+    """Send sensor data to the receiver server"""
     payload = {
         "thread": thread_name,
         "timestamp": datetime.now().isoformat(),
@@ -71,59 +154,75 @@ def send_to_receiver(thread_name, data):
 
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.settimeout(10)  # Connection timeout
+            s.settimeout(10)
             
-            logger.info(f"📡 Connecting to {RECEIVER_HOST}:{RECEIVER_PORT}")
+            logger.info(f"📡 Connecting to server at {RECEIVER_HOST}:{RECEIVER_PORT}")
             s.connect((RECEIVER_HOST, RECEIVER_PORT))
 
-            # Step 1: Identification
+            # Node identification
             id_request = s.recv(1024)
             if id_request != b"NODE_ID_REQUEST":
-                logger.error("⚠️ Protocol error: expected ID request")
-                return
+                logger.error("❌ Protocol error: expected ID request")
+                return False
 
             s.sendall(NODE_ID.encode('utf-8'))
             response = s.recv(1024)
             
             if response != b"READY":
-                logger.error(f"⚠️ Server not ready: {response.decode()}")
-                return
+                logger.error(f"❌ Server not ready: {response.decode()}")
+                return False
 
-            # Step 2: Send data
+            # Send data
             s.sendall(json.dumps(payload).encode('utf-8'))
             final_response = s.recv(1024).decode('utf-8')
             
             if final_response == "OK_QUEUED":
-                logger.info(f"✅ Data queued for processing ({thread_name})")
+                logger.info(f"✅ Data queued at server ({thread_name})")
+                return True
             else:
                 logger.warning(f"⚠️ Server response: {final_response}")
+                return False
 
     except socket.timeout:
-        logger.error("⌛ Connection timeout")
+        logger.error("⌛ Connection timeout with server")
+    except ConnectionRefusedError:
+        logger.error("🔌 Connection refused - server may be down")
     except Exception as e:
-        logger.error(f"🔴 Connection error: {str(e)}")
+        logger.error(f"🔴 Unexpected error: {str(e)}")
+    return False
 
 
-# === THREADS MANAGER ===
-def listener_job(thread_name, func):
-    """Sync the data from threads"""
+def sensor_job(thread_name, func):
+    """Thread worker for each sensor"""
+    retry_count = 0
+    max_retries = 3
+    
     while not STOP_EVENT.is_set():
         try:
             data = func()
-            logger.info(f"[{thread_name}] Retrieved data: {data}")
-            send_to_receiver(thread_name, data)
+            logger.info(f"[{thread_name}] Collected data: {data}")
+            
+            success = send_to_receiver(thread_name, data)
+            
+            if not success and retry_count < max_retries:
+                retry_count += 1
+                logger.warning(f"[{thread_name}] Retry {retry_count}/{max_retries} in 30s...")
+                STOP_EVENT.wait(30)  # Short wait for retry
+                continue
+                
+            retry_count = 0
+            STOP_EVENT.wait(60)  # Normal 60-second interval
+            
         except Exception as e:
-            logger.error(f"[{thread_name}] Error: {str(e)}")
-        
-        STOP_EVENT.wait(60)  # Wait 60 seconds until STOP_EVENT
+            logger.error(f"[{thread_name}] Critical error: {str(e)}")
+            STOP_EVENT.wait(60)  # Wait before next attempt
 
 
-# === START THE PROGRAMS IN THREADS ===
 if __name__ == "__main__":
-    # Sensor Start
+    # Start sensor threads
     sensors = [
-        threading.Thread(target=listener_job, args=("🌧️ Rain Gauge", rain_gauge_data)),
-        threading.Thread(target=listener_job, args=("💧 Flood Sensor", flood_sensor_data))
+        threading.Thread(target=sensor_job, args=("🌧️ Rain Gauge", rain_gauge_data)),
+        threading.Thread(target=sensor_job, args=("💧 Flood Sensor", flood_sensor_data))
     ]
 
     for sensor in sensors:
@@ -133,12 +232,11 @@ if __name__ == "__main__":
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        logger.info("🛑 Stopping all threads...")
+        logger.info("🛑 Stopping all sensors...")
         STOP_EVENT.set()
-    finally:
         for sensor in sensors:
             sensor.join()
-        logger.info("👋 All threads stopped")
+        logger.info("👋 All sensors stopped")
         sys.exit(0)
 
 
