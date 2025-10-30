@@ -144,7 +144,6 @@ if __name__ == "__main__":
 
 
 
-
 # # === SEND INFORMATION TO THE SERVER ===
 # def send_to_receiver(thread_name, data):
 
