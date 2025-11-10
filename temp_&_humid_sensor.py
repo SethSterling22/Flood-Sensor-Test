@@ -2,6 +2,7 @@ import RPi.GPIO as GPIO
 import dht11
 import time
 import sys
+import os
 from dotenv import load_dotenv
 
 
@@ -21,7 +22,7 @@ CHANNEL = int(os.getenv('TEMP_&_HUMID_SENSOR'))
 # Inicializa el sensor DHT11 con el pin de datos (canal)
 instance = dht11.DHT11(pin = CHANNEL)
 
-print("Iniciando lectura del DHT11. Presiona Ctrl+C para salir.")
+print("Start recording... Press Ctrl+C to stop.")
 
 try:
     while True:
@@ -34,20 +35,20 @@ try:
             humidity = result.humidity
             
             print(
-                f"Temperatura: {temperature_c:.1f}°C | Humedad: {humidity:.1f}%"
+                f"Temperature: {temperature_c:.1f}°C | Humedity: {humidity:.1f}%"
             )
         else:
             # Los códigos de error a menudo indican un fallo temporal de lectura
-            print(f"Error al leer el sensor. Code: {result.error_code}. Reintentando...")
+            print(f"Error reading the sensor. Code: {result.error_code}. Trying again...")
 
         # El DHT11 solo debe leerse una vez cada 2 segundos como mínimo.
-        time.sleep(2.0)
+        time.sleep(5.0)
 
 except KeyboardInterrupt:
-    print("\nPrograma terminado por el usuario.")
+    print("\nProgram stopped by user.")
     
 except Exception as e:
-    print(f"\nError inesperado: {e}")
+    print(f"\nUnexpected Error: {e}")
 
 finally:
     # Es crucial limpiar la configuración GPIO al salir
