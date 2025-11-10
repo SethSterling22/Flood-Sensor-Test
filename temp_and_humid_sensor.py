@@ -3,6 +3,7 @@ import dht11
 import time
 import sys
 import os
+import datetime
 from dotenv import load_dotenv
 
 
@@ -29,13 +30,16 @@ try:
         # Lee los datos del sensor
         result = instance.read()
 
+
         if result.is_valid():
             # Datos válidos recibidos
             temperature_c = result.temperature
             humidity = result.humidity
+            now = datetime.datetime.now()
+            time_string = f"{now.hour}:{now.minute}:{now.second}"
             
             print(
-                f"Temperature: {temperature_c:.1f}°C | Humedity: {humidity:.1f}%"
+                f"Time: {time_string} | Temperature: {temperature_c:.1f}°C | Humedity: {humidity:.1f}%"
             )
             time.sleep(5)
         else:
