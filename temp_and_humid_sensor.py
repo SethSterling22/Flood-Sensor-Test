@@ -37,12 +37,13 @@ try:
             print(
                 f"Temperature: {temperature_c:.1f}°C | Humedity: {humidity:.1f}%"
             )
+            time.sleep(5)
         else:
             # Los códigos de error a menudo indican un fallo temporal de lectura
             print(f"Error reading the sensor. Code: {result.error_code}. Trying again...")
 
         # El DHT11 solo debe leerse una vez cada 2 segundos como mínimo.
-        time.sleep(5.0)
+        
 
 except KeyboardInterrupt:
     print("\nProgram stopped by user.")
