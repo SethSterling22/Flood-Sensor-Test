@@ -36,7 +36,7 @@ NODE_DATA_QUEUE = queue.Queue()
 CSV_BUFFER: List[Dict[str, Any]] = []
 # PROCESSING_LOCK = threading.Lock()
 
-LOG_DIR = "./Logs/"
+LOG_DIR = ".Tests/Test_Nodes/Logs/"
 CSV_DIR = os.path.join(LOG_DIR,"Water_data/")
 CSV_FILE = os.path.join(CSV_DIR, 'metrics_data.csv')
 
@@ -54,11 +54,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
-# --- Configuración ---
-
-
-# --- Variables Globales y Locks ---
+# === GLOBAL VARIABLES AND LOCKS ===
 STOP_EVENT = threading.Event()
 # Almacena {NODE_ID: socket_object}
 CLIENTS_INDEX = {} 
@@ -70,7 +66,9 @@ INDEX_LOCK = threading.Lock() # Para asegurar acceso seguro a CLIENTS_INDEX
 #                     format='%(asctime)s - %(threadName)s - %(levelname)s - %(message)s')
 # logger = logging.getLogger(__name__)
 
-# --- Configuración de Archivo CSV ---
+
+
+# ====== CSV FILE CONFIGURATION ======
 def setup_csv():
     """
     Create the CSV and add the header.
@@ -104,7 +102,7 @@ def save_data_to_csv(data_list, node_id):
         logger.info("✅ Guardados %d puntos de datos de NODE ID: %s", len(data_list), node_id)
     except Exception as e:
         logger.error("Error al escribir en CSV: %s", e)
-
+# ====== CSV FILE CONFIGURATION ======
 
 
 def handle_client(conn, addr):
@@ -116,27 +114,28 @@ def handle_client(conn, addr):
     client_address = f"{addr[0]}:{addr[1]}"
     thread_name = threading.current_thread().name
 
-    logger.info(f"[{thread_name}] 🤝 Nueva conexión desde {client_address}")
+    logger.info("[%s] 🤝 New connection from: %s", thread_name, client_address)
 
     try:
-        # 1. Confirmar conexión y esperar ID
+        # 1. Confirm connection and wait for ID
         conn.sendall(b"CONNECTED")
 
-        # 2. Recibir NODE_ID
+        # 2. Receive NODE_ID
         conn.settimeout(10) # Timeout para el registro inicial
         node_id_bytes = conn.recv(1024).strip()
 
         if not node_id_bytes:
-            logger.warning("[%s] Cliente %s no envió ID. Cerrando.", thread_name, client_address)
+            logger.warning("[%s] Client %s did not send ID. Closing...", thread_name, client_address)
             return
 
+        # Catch node ID
         node_id = node_id_bytes.decode()
         logger.info("[%s] NODE_ID Received: %s", thread_name, node_id)
 
-        # 3. Indexar el cliente
+        # 3. Index the client
         with INDEX_LOCK:
             if node_id in CLIENTS_INDEX:
-                logger.warning(f"[{thread_name}] Reemplazando conexión existente para ID: {node_id}")
+                logger.warning(f"[{thread_name}] Replacing existing connection for ID: {node_id}")
             CLIENTS_INDEX[node_id] = conn
 
         conn.sendall(b"ID_RECEIVED")
@@ -169,9 +168,7 @@ def handle_client(conn, addr):
                 # data_bytes = conn.recv(4096).strip() 
                 # conn.settimeout(300) 
 
-
                 #################################################3
-
                 length_bytes = conn.recv(8)
                     
                 if not length_bytes:
@@ -351,6 +348,8 @@ if __name__ == "__main__":
         STOP_EVENT.set()
         # Puedes añadir un pequeño retraso para que el hilo principal detecte el evento
         time.sleep(2)
+
+
 
 
 """

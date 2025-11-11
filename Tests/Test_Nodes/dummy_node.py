@@ -13,7 +13,7 @@ def get_data():
     """
 
     # Simulate variable processing time
-    time.sleep(random.uniform(0.1, 4)) 
+    time.sleep(random.uniform(5, 15)) 
     now = datetime.datetime.now()
     time_string = f"{now.hour}:{now.minute}:{now.second}"
     

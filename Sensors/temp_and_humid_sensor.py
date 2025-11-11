@@ -32,7 +32,7 @@ def get_temp_and_humid_data():
     This function register Temperature and Humidity information
     based on a HiLetgo Module Sensor.
     """
-    logger.info("🌡️ Starting Temperatura and Humidity monitoring...")
+    logger.info("🌡️ Starting Temperature and Humidity monitoring...")
 
     try:
         while True:

@@ -65,7 +65,7 @@ def get_rain_data():
 
         # Restart "count" for the next cicle
         count = 0
-
+        
         return minute_tips
 
     except Exception as e:
