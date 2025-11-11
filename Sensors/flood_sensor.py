@@ -51,7 +51,8 @@ def get_flood_data():
     except Exception as e:
         logger.info("\n❌ An error has occurred with the Flood Sensor: \n\n %s", e)
 
-
+if __name__ == "__main__":
+    get_flood_data()
 
 # from tapipy.tapis import Tapis
 # from utils import get_streamflow_data, set_model_parameters, submit_subtask

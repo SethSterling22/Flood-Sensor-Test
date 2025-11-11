@@ -71,6 +71,9 @@ def get_rain_data():
     except Exception as e:
         logger.info("\n❌ An error has occurred with the Rain Sensor: \n\n %s", e)
 
+if __name__ == "__main__":
+    get_rain_data()
+
 
 # === INITIALIZATION FUNCTIONS AND UTILS ===
 
