@@ -61,7 +61,7 @@ def get_rain_data():
 
         # Calculate the difference to know the ammount of rain in the previous minute
         minute_tips = (current_count - initial_count) * BUCKET_SIZE
-        logger.info(f"Logged {minute_tips} mm for the previous minute")
+        #logger.info(f"Logged {minute_tips} mm for the previous minute")
 
         # Restart "count" for the next cicle
         count = 0

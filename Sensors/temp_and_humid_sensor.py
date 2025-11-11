@@ -43,8 +43,8 @@ def get_temp_and_humid_data():
                 # Valid data received
                 temperature_c = result.temperature
                 humidity = result.humidity
-                now = datetime.datetime.now()
-                time_string = f"{now.hour}:{now.minute}:{now.second}"
+                #now = datetime.datetime.now()
+                #time_string = f"{now.hour}:{now.minute}:{now.second}"
 
                 # Celcius string convertion
                 temperature = f"{temperature_c:.1f}°C"
@@ -53,7 +53,7 @@ def get_temp_and_humid_data():
                 # temperature_f_calc = (temperature_c * 9/5) + 32
                 # temperature = f"{temperature_f_calc:.1f}°F"
 
-                logger.info("Time: %s | Temperature: %s | Humedity: %.1f %%", time_string, temperature, humidity)
+                #logger.info("Time: %s | Temperature: %s | Humedity: %.1f %%", time_string, temperature, humidity)
                 return temperature, humidity
 
                 # If the lecture was successful, wait 5 seconds for the next one
