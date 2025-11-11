@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 
 
 # === ENVIRONMENT  VARIABLES ===
-load_dotenv("./Env/.env.config")  # Config env variables
+load_dotenv("../Env/.env.config")  # Config env variables
 
 # === SENSOR SETUP ===
 CHANNEL = int(os.getenv('TEMP_&_HUMID_SENSOR'))
