@@ -66,3 +66,6 @@ def get_temp_and_humid_data():
     except Exception as e:
         logger.info("\n❌ An error has occurred with the Temperature and Humidity Sensor: \n\n %s", e)
 
+if __name__ == "__main__":
+    get_temp_and_humid_data()
+
