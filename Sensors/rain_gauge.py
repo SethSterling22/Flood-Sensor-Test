@@ -20,7 +20,7 @@ from dotenv import load_dotenv
 
 
 # === ENVIRONMENT  VARIABLES ===
-load_dotenv("../Env/.env.config")  # Config env variables
+load_dotenv("./Env/.env.config")  # Config env variables
 
 # === CONFIGURATION ===
 BUCKET_SIZE = 0.2794  # mm per tip, adjust if needed
