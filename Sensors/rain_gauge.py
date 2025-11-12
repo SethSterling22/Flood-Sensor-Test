@@ -14,7 +14,6 @@ information that it have in queue to send that day
 import os
 import time
 import logging
-from threading import Lock
 from gpiozero import Button
 from dotenv import load_dotenv
 
@@ -25,14 +24,13 @@ load_dotenv("./Env/.env.config")  # Config env variables
 
 # === CONFIGURATION ===
 BUCKET_SIZE = 0.2794  # mm per tip, adjust if needed
-POLL_INTERVAL = 60 
 
 # === SENSOR SETUP ===
 rain_sensor = Button(int(os.getenv('RAINFALL_SENSOR'))) # Previous 27
 
 # === GLOBALS SETUP to track counts and timing ===
 count_lock = Lock()
-bucket_count = 0
+count = 0
 
 # === LOGGING SETUP ===
 logger = logging.getLogger(__name__)
@@ -43,55 +41,38 @@ def bucket_tipped():
     """
     This function is called by the sensor event. It only increase the counter.
     """
-    # global count
-    # count += 1
-    with count_lock:
-        bucket_count += 1
-    logger.debug("Bucket tipped - count: %d", bucket_count)
+    global count
+    count += 1
 
 
 def get_rain_data():
     """
     Counts the ammount of precipitation per minute and return the result in mm.
     """
-    # global count
-    # initial_count = count
-    # logger.info("🌧️ Starting Rain Gauge monitoring...")
+    global count
+    initial_count = count
+    logger.info("🌧️ Starting Rain Gauge monitoring...")
 
-    # try:
-    #     # Configure the event Manager of the Sensor
-    #     rain_sensor.when_pressed = bucket_tipped
-
-    #     # Count the total number in the 60 seconds interval
-    #     current_count = count
-
-    #     # Calculate the difference to know the ammount of rain in the previous minute
-    #     minute_tips = (current_count - initial_count) * BUCKET_SIZE
-    #     #logger.info(f"Logged {minute_tips} mm for the previous minute")
-
-    #     # Restart "count" for the next cicle
-    #     count = 0
-        
-    #     return minute_tips
-
-    global bucket_count
-    rain_sensor.when_pressed = bucket_tipped  # Set up event handler
-    
     try:
-        # Get count and reset atomically
-        with count_lock:
-            tips = bucket_count
-            bucket_count = 0
+        # Configure the event Manager of the Sensor
+        rain_sensor.when_pressed = bucket_tipped
+
+        # Count the total number in the 60 seconds interval
+        current_count = count
+
+        time.sleep(60)
+
+        # Calculate the difference to know the ammount of rain in the previous minute
+        minute_tips = (current_count - initial_count) * BUCKET_SIZE
+        #logger.info(f"Logged {minute_tips} mm for the previous minute")
+
+        # Restart "count" for the next cicle
+        count = 0
         
-        rainfall = tips * BUCKET_SIZE
-        logger.info("Measured %.2f mm rainfall", rainfall)
-        return rainfall
-        
+        return minute_tips
+
     except Exception as e:
-        logger.error("Rain gauge error: %s", str(e))
-        return 0
-    # except Exception as e:
-    #     logger.info("\n❌ An error has occurred with the Rain Sensor: \n\n %s", e)
+        logger.info("\n❌ An error has occurred with the Rain Sensor: \n\n %s", e)
 
 if __name__ == "__main__":
     get_rain_data()
