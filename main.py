@@ -85,11 +85,11 @@ def listener_job(sensor_name, func):
             #         print("Check packets. ")
             #         print(SENSOR_DATA_BUFFER)
             # Start the Threads and wait
-            data = func()
+            #data = func()
 
             if CLIENT_READY:
                 # Call to the function
-                #data = func()
+                data = func()
                 with BUFFER_LOCK:
                     SENSOR_DATA_BUFFER.append({
                         'sensor': sensor_name,
