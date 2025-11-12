@@ -87,6 +87,7 @@ def listener_job(sensor_name, func):
             # Start the Threads and wait
             #data = func()
 
+            # CLIENT is READY when NODE_ID is received by the Sever
             if CLIENT_READY:
                 # Call to the function
                 data = func()
@@ -97,7 +98,8 @@ def listener_job(sensor_name, func):
                         'value': data
                     })
                     logger.debug("Buffered %s data: %.2f", sensor_name, data)
-                    # logger.debug(f"Data point added: {data_point}") 
+                # Wait for 60 seconds (the collection interval)
+                STOP_EVENT.wait(60)
             # Wait until next measurement interval
             # time.sleep(POLL_INTERVAL)
                 
@@ -144,7 +146,7 @@ def client():
             # --- CONNECTION STABLISHED AND NODE REGISTERED ---
             logger.info("✅ Connection established and ID registered. Starting data collection... 📊")
 
-            # Allows the threads data recording
+            # Allows the threads data recording 
             CLIENT_READY = True
 
             # 3. Principal receiver loop and data sending

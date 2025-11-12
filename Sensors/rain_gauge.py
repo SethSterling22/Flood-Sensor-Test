@@ -50,7 +50,7 @@ def get_rain_data():
     """
     global count
     initial_count = count
-    #logger.info("🌧️ Starting Rain Gauge monitoring...")
+    logger.info("🌧️ Starting Rain Gauge monitoring...")
 
     try:
         # Configure the event Manager of the Sensor
