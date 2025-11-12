@@ -29,7 +29,6 @@ BUCKET_SIZE = 0.2794  # mm per tip, adjust if needed
 rain_sensor = Button(int(os.getenv('RAINFALL_SENSOR'))) # Previous 27
 
 # === GLOBALS SETUP to track counts and timing ===
-count_lock = Lock()
 count = 0
 
 # === LOGGING SETUP ===
