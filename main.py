@@ -77,16 +77,33 @@ def listener_job(sensor_name, func):
     
     # Receive the information from the Sensors
     while not STOP_EVENT.is_set():
-        # Call to the function
-        data = func()
-        
-        # Just save on BUFFER if client is INDEXED 
-        if CLIENT_READY:
-            with BUFFER_LOCK:
-                SENSOR_DATA_BUFFER.append(data)
-                print("Check packets. ")
-                print(SENSOR_DATA_BUFFER)
-                # logger.debug(f"Data point added: {data_point}") 
+        try:
+            
+            # if CLIENT_READY:
+            #     with BUFFER_LOCK:
+            #         SENSOR_DATA_BUFFER.append(data)
+            #         print("Check packets. ")
+            #         print(SENSOR_DATA_BUFFER)
+            # Start the Threads and wait
+            data = func()
+
+            if CLIENT_READY:
+                # Call to the function
+                #data = func()
+                with BUFFER_LOCK:
+                    SENSOR_DATA_BUFFER.append({
+                        'sensor': sensor_name,
+                        'timestamp': time.time(),
+                        'value': data
+                    })
+                    logger.debug("Buffered %s data: %.2f", sensor_name, data)
+                    # logger.debug(f"Data point added: {data_point}") 
+            # Wait until next measurement interval
+            # time.sleep(POLL_INTERVAL)
+                
+        except Exception as e:
+            logger.error("%s thread error: %s", sensor_name, str(e))
+            time.sleep(5)  # Wait before retrying
 
 
 def client():
