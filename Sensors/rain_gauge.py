@@ -50,7 +50,7 @@ def get_rain_data():
     """
     global count
     initial_count = count
-    logger.info("🌧️ Starting Rain Gauge monitoring...")
+    #logger.info("🌧️ Starting Rain Gauge monitoring...")
 
     try:
         # Configure the event Manager of the Sensor
@@ -59,7 +59,7 @@ def get_rain_data():
         # Count the total number in the 60 seconds interval
         current_count = count
 
-        time.sleep(60)
+        #time.sleep(60)
 
         # Calculate the difference to know the ammount of rain in the previous minute
         minute_tips = (current_count - initial_count) * BUCKET_SIZE

@@ -32,7 +32,7 @@ def get_temp_and_humid_data():
     This function register Temperature and Humidity information
     based on a HiLetgo Module Sensor.
     """
-    logger.info("🌡️ Starting Temperature and Humidity monitoring...")
+    #logger.info("🌡️ Starting Temperature and Humidity monitoring...")
 
     try:
         while True:
@@ -58,9 +58,9 @@ def get_temp_and_humid_data():
 
                 # If the lecture was successful, wait 5 seconds for the next one
                 time.sleep(5)
-            else:
+            # else:
                 # Los códigos de error a menudo indican un fallo temporal de lectura
-                logger.error("Error reading the sensor. Code: %s. Trying again...", result.error_code)
+                # logger.error("Error reading the sensor. Code: %s. Trying again...", result.error_code)
 
     except Exception as e:
         logger.info("\n❌ An error has occurred with the Temperature and Humidity Sensor: \n\n %s", e)
