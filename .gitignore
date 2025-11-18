@@ -405,3 +405,6 @@ Env/.env
 
 # Virtual Environments
 venv/
+
+# Do not save CSV files
+*.csv

@@ -1,3 +1,4 @@
+
 """
 This program opens a server through which different
 nodes can connect. It also synchronizes the information
@@ -6,41 +7,48 @@ these nodes send every minute and queues it for upload.
 
 #import threading
 #import random
-#import signal
-
-
-
+import signal
 
 import os
 import sys
+import csv
 import time
 import json
 import queue
 import socket
 import logging
+import datetime
 import threading
-from datetime import datetime, timedelta
-from dotenv import load_dotenv
 from typing import Dict, Any, List
-import csv
+from dotenv import load_dotenv
+
+
 
 # === ENVIRONMENT VARIABLES ===
 load_dotenv("./Env/.env.config")
-HOST = "0.0.0.0"
+HOST = "0.0.0.0" # All transmitters
 PORT = int(os.getenv("RECEIVER_PORT") or 4040)
 
-# === GLOBAL VARIABLES ===
-NODES: Dict[str, Any] = {}
-NODE_DATA_QUEUE = queue.Queue()
-CSV_BUFFER: List[Dict[str, Any]] = []
-PROCESSING_LOCK = threading.Lock()
 
+# === GLOBAL VARIABLES AND LOCKS ===
+STOP_EVENT = threading.Event()
+# Storage {NODE_ID: socket_object}
+CLIENTS_INDEX = {} 
+CLIENT_SEND_EVENTS = {}
+INDEX_LOCK = threading.Lock() # Para asegurar acceso seguro a CLIENTS_INDEX
+# NODES: Dict[str, Any] = {}
+# NODE_DATA_QUEUE = queue.Queue()
+# CSV_BUFFER: List[Dict[str, Any]] = []
+
+
+# === SAVE FILES PATH ===
 LOG_DIR = "./Logs/"
-CSV_DIR = "./Water_data/"
+CSV_DIR = os.path.join(LOG_DIR,"Water_data/")
 CSV_FILE = os.path.join(CSV_DIR, 'metrics_data.csv')
-
+# Create the directories if not exist
 os.makedirs(LOG_DIR, exist_ok=True)
 os.makedirs(CSV_DIR, exist_ok=True)
+
 
 # === LOGGING SETUP ===
 logging.basicConfig(
@@ -54,286 +62,352 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-class NodeConnectionManager:
-    """Manages all node connections and synchronization"""
-    
-    def __init__(self):
-        self.minute_events: Dict[str, threading.Event] = {}
-        self.node_timers: Dict[str, datetime] = {}
-        self.lock = threading.Lock()
-    
-    def register_node(self, node_id: str):
-        """Register a new node connection"""
-        with self.lock:
-            if node_id not in self.minute_events:
-                self.minute_events[node_id] = threading.Event()
-                self.node_timers[node_id] = datetime.now()
-                logger.info(f"⏱️ Registered timer for node {node_id}")
-    
-    def unregister_node(self, node_id: str):
-        """Remove a node connection"""
-        with self.lock:
-            if node_id in self.minute_events:
-                del self.minute_events[node_id]
-                del self.node_timers[node_id]
-                logger.info(f"⏱️ Unregistered timer for node {node_id}")
-    
-    def wait_for_minute(self, node_id: str) -> bool:
-        """Wait until the next minute boundary for a node"""
-        with self.lock:
-            if node_id not in self.minute_events:
-                return False
-            
-            event = self.minute_events[node_id]
-            last_time = self.node_timers[node_id]
-            next_minute = (last_time + timedelta(minutes=1)).replace(second=0, microsecond=0)
-            wait_seconds = (next_minute - datetime.now()).total_seconds()
-            
-            if wait_seconds > 0:
-                logger.debug(f"⏱️ Node {node_id} waiting {wait_seconds:.1f}s until next minute")
-                return event.wait(wait_seconds)
-            return True
-    
-    def notify_minute_elapsed(self):
-        """Notify all nodes that a minute has elapsed"""
-        with self.lock:
-            current_time = datetime.now()
-            for node_id, event in self.minute_events.items():
-                self.node_timers[node_id] = current_time
-                event.set()
-                event.clear()
-            logger.debug("⏱️ All nodes notified of minute change")
 
-node_manager = NodeConnectionManager()
-
-def handle_node_connection(conn: socket.socket, addr: tuple):
-    """Manage persistent node connection with minute synchronization"""
-    node_id = None
+# ====== CSV FILE CONFIGURATION ======
+def setup_csv():
+    """
+    Create the CSV and add the header.
+    """
     try:
-        # Step 1: Initial Handshake
-        conn.settimeout(30)
-        conn.sendall(b"NODE_ID_REQUEST")
-        node_id = conn.recv(1024).decode('utf-8').strip()
-        
-        if not node_id.startswith("NODE_"):
-            raise ValueError("Invalid node ID format")
-        
-        # Register node with connection manager
-        node_manager.register_node(node_id)
-        
-        with PROCESSING_LOCK:
-            NODES[node_id] = {
-                'conn': conn,
-                'addr': addr,
-                'last_active': time.time(),
-                'status': 'connected'
-            }
-        
-        logger.info(f"🆔 Node {node_id} connected from {addr}")
-        conn.sendall(b"READY")
-        conn.settimeout(None)  # Reset to blocking mode
+        with open(CSV_FILE, mode='w', newline='') as file:
+            writer = csv.writer(file)
+            # write on the CSV the data
+            writer.writerow(['Node_ID', 'Timestamp', 'Raw_Data']) 
+        logger.info("💾 File data %s ready with headers.", CSV_FILE)
+    except Exception as e:
+        logger.error("ERROR setting up CSV: %s", e)
 
-        # Step 2: Minute-synchronized data collection
-        while True:
-            # Wait for next minute boundary
-            if not node_manager.wait_for_minute(node_id):
-                break
-            
+
+def save_data_to_csv(data_list, node_id):
+    """
+    Save the data Chunks in the CSV file
+    """
+
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Asumimos que data_list es una lista de strings (puntos de datos crudos)
+    rows = []
+
+    # Si recibimos una lista de diccionarios (JSON), debemos serializarlos de nuevo para el CSV
+    for item in data_list:
+        if isinstance(item, dict) or isinstance(item, list):
+            # Convierte el diccionario/lista a una cadena JSON para guardarlo como 'Raw_Data'
+            raw_data_str = json.dumps(item)
+        else:
+            # Si es solo una cadena, úsala directamente
+            raw_data_str = str(item)
+
+        rows.append([node_id, now, raw_data_str]) # Nota: La columna 'Timestamp' es la segunda
+
+    try:
+        with open(CSV_FILE, mode='a', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerows(rows)
+        logger.info("✅ Saved %d data chunks from NODE ID: %s", len(data_list), node_id)
+    except Exception as e:
+        logger.error("Error writing on CSV: %s", e)
+
+
+    # for raw_data in data_list:
+    #     rows.append([now, node_id, raw_data])
+
+    # try:
+    #     with open(CSV_FILE, mode='a', newline='') as file:
+    #         writer = csv.writer(file)
+    #         writer.writerows(rows)
+    #     logger.info("✅ Guardados %d puntos de datos de NODE ID: %s", len(data_list), node_id)
+    # except Exception as e:
+    #     logger.error("Error al escribir en CSV: %s", e)
+
+
+# ====== CSV FILE CONFIGURATION ======
+
+
+def handle_client(conn, addr):
+    """
+    Maneja la conexión con un cliente individual.
+    """
+
+    node_id = None
+    client_address = f"{addr[0]}:{addr[1]}"
+    thread_name = threading.current_thread().name
+
+    logger.info("[%s] 🤝 New connection from: %s", thread_name, client_address)
+
+    try:
+        # 1. Confirm connection and wait for ID
+        conn.sendall(b"CONNECTED")
+
+        # 2. Receive NODE_ID
+        conn.settimeout(30) # Timeout para el registro inicial
+        node_id_bytes = conn.recv(1024).strip()
+
+        if not node_id_bytes:
+            logger.warning("[%s] Client %s did not send ID. Closing...", thread_name, client_address)
+            return
+
+        # Catch node ID
+        node_id = node_id_bytes.decode()
+        logger.info("[%s] NODE_ID Received: %s", thread_name, node_id)
+
+        # 3. Index the client
+        with INDEX_LOCK:
+            if node_id in CLIENTS_INDEX:
+                logger.warning(f"[{thread_name}] Replacing existing connection for ID: {node_id}")
+            CLIENTS_INDEX[node_id] = conn
+
+        conn.sendall(b"ID_RECEIVED")
+        logger.info("✅ Sending Response [ID_RECEIVED]")
+
+
+
+        client_event = threading.Event()
+        with INDEX_LOCK:
+            CLIENT_SEND_EVENTS[node_id] = client_event
+
+        # 4. Bucle principal de recepción de datos
+        while not STOP_EVENT.is_set():
+            # Aumentar el timeout para esperar datos después de la señal (30 segundos)
+            # conn.settimeout(180)
+
+            if not client_event.wait(timeout=30):
+            # Si el timeout ocurre, simplemente volvemos a esperar el evento
+            # Esto evita que el recv() se bloquee innecesariamente.
+                continue 
+
+            # El evento se activó (el scheduler envió READY_TO_INDEX)
+            client_event.clear() 
+
+            # Recibir datos del cliente
+            # La señal READY_TO_INDEX la envía otro hilo (scheduler), no este.
             try:
-                # Send READY signal at minute boundary
-                conn.sendall(b"READY")
-                
-                # Wait for data (with 65s timeout in case of issues)
-                conn.settimeout(65)
-                data = conn.recv(4096)
-                conn.settimeout(None)
-                
-                if not data:
-                    break  # Connection closed
-                
-                current_time = time.time()
-                message = json.loads(data.decode('utf-8'))
-                logger.info(f"📥 Received data from {node_id}")
+                # El cliente enviará datos después de recibir READY_TO_INDEX
+                conn.settimeout(10) 
+                # conn.settimeout(300) 
 
-                # Validate message
-                if not all(key in message for key in ['node_id', 'metrics', 'timestamp']):
-                    raise ValueError("Invalid message format")
-                
-                # Update activity
-                with PROCESSING_LOCK:
-                    NODES[node_id]['last_active'] = current_time
+                # 5. Process data length
+                #################################################
+                length_or_data_bytes = conn.recv(8)
 
-                # Queue for processing
-                NODE_DATA_QUEUE.put({
-                    'node_id': node_id,
-                    'timestamp': message['timestamp'],
-                    'metrics': message['metrics']
-                })
-                
-                conn.sendall(b"OK_QUEUED")
+                if not length_or_data_bytes:
+                    # If the length was not received, the client is disconnected
+                    raise ConnectionResetError("Client disconnected during tranfer.")
+                if length_or_data_bytes.decode()[:7] == "NO_DATA":
+                    # Si es NO_DATA, hemos recibido la data completa (7 bytes)
+                    payload = "NO_DATA"
+                    data_bytes = length_or_data_bytes
+
+                else:
+                    data_length = int(length_or_data_bytes.decode())
+                    data_bytes = b''
+                    bytes_received = 0
+
+                    # Receive the data transfer in chunks
+                    while bytes_received < data_length:
+                        remaining_bytes = data_length - bytes_received
+                        chunk = conn.recv(min(4096, remaining_bytes))
+                        if not chunk:
+                            raise ConnectionResetError("Connection lost during data transfer.")
+                        data_bytes += chunk
+                        bytes_received += len(chunk)
+
+                    conn.settimeout(300) # Go back to the inactivity timeout
+
+                    # With the bytes, the next is decode and process
+                    ##################################################
+
+                    # 6. Procesar y guardar la data (JSON)
+                    payload = data_bytes.decode()
+
+                if payload == "NO_DATA":
+                    logger.info(f"[{thread_name}] Client {node_id} reported NO_DATA.")
+                    # Send the ACK message
+                    conn.sendall(b"DATA_RECEIVED")
+                    continue
+
+                try:
+                    data_list = json.loads(payload)
+                except json.JSONDecodeError:
+                    logger.error(f"[{thread_name}] Error decoding JSON received from {node_id}.")
+                    conn.sendall(b"JSON_ERROR")
+                    continue
+
+                # La data_list ahora es una lista de diccionarios, no de strings
+                logger.info(f"[{thread_name}] Received {len(data_list)} chunks of data from {node_id}.")
+
+                # # Guardar data (Ajustar save_data_to_csv para manejar la lista de diccionarios)
+                # save_data_to_csv(data_list, node_id)
+
+                # # Procesar la data
+                # data_list = payload.split('\n')
+                # logger.info(f"[{thread_name}] Recibidos {len(data_list)} puntos de data de {node_id}.")
+
+                # Save data
+                save_data_to_csv(data_list, node_id)
+
+                # 7. Semd ACK to client
+                conn.sendall(b"DATA_RECEIVED")
 
             except socket.timeout:
-                logger.warning(f"⏰ Node {node_id} missed data window")
+                logger.warning(f"[{thread_name}] Cliente {node_id} no envió data a tiempo (Timeout).")
+                # Continuamos el bucle, esperamos la próxima señal
                 continue
-            except (json.JSONDecodeError, ValueError) as e:
-                logger.error(f"❌ Invalid data from {node_id}: {str(e)}")
-                conn.sendall(b"BAD_FORMAT")
+
+
             except Exception as e:
-                logger.error(f"🔴 Error with {node_id}: {str(e)}")
-                raise
-
-    except (ConnectionResetError, BrokenPipeError):
-        logger.warning(f"⚠️ Connection reset by node {node_id or addr}")
-    except socket.timeout:
-        logger.warning(f"⏰ Handshake timeout for node {node_id or addr}")
-    except Exception as e:
-        logger.error(f"🔴 Connection error with {node_id or addr}: {str(e)}")
-    finally:
-        if node_id:
-            with PROCESSING_LOCK:
-                if node_id in NODES:
-                    del NODES[node_id]
-            node_manager.unregister_node(node_id)
-        conn.close()
-        logger.info(f"🚪 Node {node_id or addr} disconnected")
-
-def minute_timer():
-    """Global timer that synchronizes all nodes to minute boundaries"""
-    while True:
-        now = datetime.now()
-        sleep_time = 60 - now.second
-        time.sleep(sleep_time)
-        node_manager.notify_minute_elapsed()
-        logger.debug("⏰ Global minute synchronization")
-
-def write_to_csv(data_list: List[Dict[str, Any]]):
-    """Write collected data to CSV"""
-    if not data_list:
-        return
-
-    fieldnames = ['timestamp', 'node_id', 'sensor', 'value']
-    file_exists = os.path.exists(CSV_FILE)
-    
-    try:
-        with open(CSV_FILE, 'a', newline='', encoding='utf-8') as csvfile:
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            if not file_exists:
-                writer.writeheader()
-            
-            for record in data_list:
-                writer.writerow(record)
-        
-        logger.info(f"💾 Wrote {len(data_list)} records to CSV")
-
-    except Exception as e:
-        logger.error(f"❌ CSV write error: {str(e)}")
-
-def process_queue():
-    """Process queued data and manage uploads"""
-    last_upload = time.time()
-    UPLOAD_INTERVAL = 3600  # 1 hour
-    
-    while True:
-        # Process at minute boundaries
-        now = time.time()
-        time.sleep(60 - (now % 60))
-        
-        # Collect all available data
-        records_to_process = []
-        while not NODE_DATA_QUEUE.empty():
-            try:
-                item = NODE_DATA_QUEUE.get_nowait()
-                
-                # Create separate records for each metric
-                for sensor, value in item['metrics'].items():
-                    records_to_process.append({
-                        'timestamp': item['timestamp'],
-                        'node_id': item['node_id'],
-                        'sensor': sensor.replace('🌧️ ', '').replace('💧 ', ''),
-                        'value': value
-                    })
-                
-                NODE_DATA_QUEUE.task_done()
-            except queue.Empty:
+                logger.error(f"[{thread_name}] Error en la comunicación con {node_id}: {e}")
                 break
-        
-        # Write to CSV and buffer for upload
-        if records_to_process:
-            write_to_csv(records_to_process)
-            
-            with PROCESSING_LOCK:
-                CSV_BUFFER.extend(records_to_process)
-                logger.info(f"📊 Buffer: {len(CSV_BUFFER)} records")
-                
-                # Hourly upload check
-                if time.time() - last_upload >= UPLOAD_INTERVAL and CSV_BUFFER:
-                    try:
-                        uploader_metrics(CSV_BUFFER.copy())
-                        CSV_BUFFER.clear()
-                        last_upload = time.time()
-                    except Exception as e:
-                        logger.error(f"❌ Upload failed: {str(e)}")
 
-def uploader_metrics(data: List[Dict[str, Any]]):
-    """Simulated upload function"""
-    logger.info(f"⬆️ Uploading {len(data)} records")
-    # Implement actual upload logic here
+    except Exception as e:
+        logger.error(f"[{thread_name}] Error durante el manejo del cliente: {e}")
 
-def monitor_nodes():
-    """Monitor node connections and handle timeouts"""
-    while True:
-        time.sleep(5)
-        current_time = time.time()
-        inactive_nodes = []
+    # finally:
+    #     # Cleanup: Eliminar el cliente del índice
+    #     if node_id:
+    #         with INDEX_LOCK:
+    #             # if node_id in CLIENTS_INDEX:
+    #             #     del CLIENTS_INDEX[node_id]
+    #             #     logger.info("[%s] Cliente %s desindexado y conexión cerrada.", thread_name, node_id)
+    #             if node_id in CLIENT_SEND_EVENTS:
+    #                 del CLIENT_SEND_EVENTS[node_id]
+    #                 logger.info("[%s] Cliente %s desindexado y conexión cerrada.", thread_name, node_id)
 
-        with PROCESSING_LOCK:
-            for node_id, node_info in list(NODES.items()):
-                if current_time - node_info['last_active'] > 120:  # 2 minute timeout
-                    inactive_nodes.append(node_id)
+    finally:
+        # Cleanup: Eliminar el cliente del índice
+        if node_id:
+            with INDEX_LOCK:
 
-            for node_id in inactive_nodes:
-                logger.warning(f"⏰ Timeout for node {node_id}")
+                if node_id in CLIENTS_INDEX:
+                    del CLIENTS_INDEX[node_id]
+                    logger.info("[%s] Cliente %s desindexado y conexión cerrada.", thread_name, node_id)
+
+                if node_id in CLIENT_SEND_EVENTS:
+                    del CLIENT_SEND_EVENTS[node_id]
+                    # logger.info("[%s] Cliente %s desindexado y conexión cerrada.", thread_name, node_id) # Log ya está arriba
+
+        if conn:
+            conn.close()
+
+
+
+# --------------------------------------------------------------------------
+
+def scheduler_job():
+    """
+    Thread to send the sync signal to the clients each minte.
+    """
+
+    # Sincronización inicial con el reloj del sistema (similar al cliente)
+    ahora = datetime.datetime.now()
+    segundos_a_esperar = 60 - ahora.second
+    logger.info(f"⏰ Scheduler waiting {segundos_a_esperar}s for initial sync.")
+    time.sleep(segundos_a_esperar)
+
+    while not STOP_EVENT.is_set():
+        now_minute = datetime.datetime.now().strftime("%H:%M:%S")
+        logger.info(f"[{now_minute}] 🔔 Sending READY_TO_INDEX signal to {len(CLIENTS_INDEX)} clients...")
+
+        # Iterar sobre una copia de las claves para evitar problemas si otro hilo modifica el dict
+        with INDEX_LOCK:
+            clients_to_check = list(CLIENTS_INDEX.items())
+
+        # Sending the READY_TO_INDEX signal
+        for node_id, conn in clients_to_check:
+            try:
+                if node_id in CLIENT_SEND_EVENTS:
+                    CLIENT_SEND_EVENTS[node_id].set() 
+
+                conn.sendall(b"READY_TO_INDEX")
+            except Exception as e:
+                # If fails, client must be disconnected
+                # The thread handle_client will be cleaned
+                logger.warning(f"❌ Falló el envío a {node_id}: {e}")
+
+        # Esperar exactamente 60 segundos para el próximo ciclo
+        time.sleep(60)
+
+# --------------------------------------------------------------------------
+
+def main_server():
+    """
+    Función principal que inicia el servidor y los hilos.
+    """
+
+    # Set up the CSV files
+    setup_csv()
+
+    # 1. Start the thread for Scheduler
+    scheduler = threading.Thread(target=scheduler_job, name="Scheduler")
+    scheduler.start()
+
+    # 2. Starting the socket servidor
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) # Allow to reuse the Port
+            s.bind((HOST, PORT))
+            s.listen()
+            logger.info(f"📡 Server listening to {HOST}:{PORT}")
+
+            # 3. Loop to accept connections
+            s.settimeout(1) # Timeout to check STOP_EVENT
+            while not STOP_EVENT.is_set():
                 try:
-                    if 'conn' in NODES[node_id]:
-                        NODES[node_id]['conn'].sendall(b"BAD_TIMEOUT")
-                        NODES[node_id]['conn'].close()
+                    conn, addr = s.accept()
+                    # Start a new thread to handle the client
+                    client_thread = threading.Thread(target=handle_client, args=(conn, addr), name=f"Client-{addr[1]}")
+                    client_thread.start()
+                except socket.timeout:
+                    # Timeout to check if STOP_EVENT is being activated
+                    continue
+                except Exception as e:
+                    logger.error(f"Error accepting the connection: {e}")
+                    break
+
+    except Exception as e:
+        logger.critical(f"❌ Fatal error starting the server: {e}")
+
+    finally:
+        logger.info("🛑 Scheduler stopped, waiting to ending...")
+        STOP_EVENT.set()
+        scheduler.join()
+
+        # Close all active connection
+        with INDEX_LOCK:
+            for node_id, conn in CLIENTS_INDEX.items():
+                try:
+                    conn.close()
                 except:
                     pass
-                del NODES[node_id]
-                node_manager.unregister_node(node_id)
+            CLIENTS_INDEX.clear()
 
-def start_server():
-    """Start the server and worker threads"""
-    try:
-        # Start worker threads
-        threading.Thread(target=minute_timer, daemon=True).start()
-        threading.Thread(target=process_queue, daemon=True).start()
-        threading.Thread(target=monitor_nodes, daemon=True).start()
-
-        # Main server socket
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
-            server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            server_socket.bind((HOST, PORT))
-            server_socket.listen(10)
-            logger.info(f"🟢 Server started on {HOST}:{PORT}")
-
-            while True:
-                conn, addr = server_socket.accept()
-                threading.Thread(target=handle_node_connection, args=(conn, addr)).start()
-
-    except KeyboardInterrupt:
-        logger.info("🛑 Server stopped by user")
-    except Exception as e:
-        logger.error(f"🔴 Server error: {str(e)}")
-    finally:
+        logger.info("👋 Server stopped.")
         sys.exit(0)
 
 if __name__ == "__main__":
-    start_server()
+    try:
+        main_server()
+    except KeyboardInterrupt:
+        logger.info("👋 Stopped by user. Starting secure stop...")
+        STOP_EVENT.set()
+        # Tiny lapse to detect the stop
+        time.sleep(2)
 
 
 
-############################################################################################################
+
+
+# """
+# This program opens a server through which different
+# nodes can connect. It also synchronizes the information
+# these nodes send every minute and queues it for upload.
+# """
+
+# #import threading
+# #import random
+# #import signal
+
+
+
 
 # import os
 # import sys
@@ -343,50 +417,108 @@ if __name__ == "__main__":
 # import socket
 # import logging
 # import threading
-# from datetime import datetime
+# from datetime import datetime, timedelta
 # from dotenv import load_dotenv
-
+# from typing import Dict, Any, List
+# import csv
 
 # # === ENVIRONMENT VARIABLES ===
-# load_dotenv("./Env/.env.config")  # Config env variables
+# load_dotenv("./Env/.env.config")
 # HOST = "0.0.0.0"
 # PORT = int(os.getenv("RECEIVER_PORT") or 4040)
 
-
 # # === GLOBAL VARIABLES ===
-# NODES = {}  # {node_id: {'conn': connection, 'addr': address, 'last_active': timestamp}}
-# NODE_QUEUE = queue.Queue()  # Cola FIFO para procesamiento ordenado
+# NODES: Dict[str, Any] = {}
+NODE_DATA_QUEUE = queue.Queue()
+# CSV_BUFFER: List[Dict[str, Any]] = []
 # PROCESSING_LOCK = threading.Lock()
-# LOG_DIR = "./Logs/"
 
-# # Create Directory
+# LOG_DIR = "./Logs/"
+# CSV_DIR = "./Water_data/"
+# CSV_FILE = os.path.join(CSV_DIR, 'metrics_data.csv')
+
 # os.makedirs(LOG_DIR, exist_ok=True)
+# os.makedirs(CSV_DIR, exist_ok=True)
 
 # # === LOGGING SETUP ===
 # logging.basicConfig(
 #     level=logging.INFO,
 #     format='%(asctime)s - %(levelname)s - %(message)s',
 #     handlers=[
-#         logging.FileHandler(os.path.join(LOG_DIR,'metrics_receiver.log')),
-#         logging.StreamHandler()
+#         logging.FileHandler(os.path.join(LOG_DIR, 'metrics_receiver.log'), encoding='utf-8'),
+#         logging.StreamHandler(sys.stdout)
 #     ]
 # )
 # logger = logging.getLogger(__name__)
 
 
+# class NodeConnectionManager:
+#     """Manages all node connections and synchronization"""
+    
+#     def __init__(self):
+#         self.minute_events: Dict[str, threading.Event] = {}
+#         self.node_timers: Dict[str, datetime] = {}
+#         self.lock = threading.Lock()
+    
+#     def register_node(self, node_id: str):
+#         """Register a new node connection"""
+#         with self.lock:
+#             if node_id not in self.minute_events:
+#                 self.minute_events[node_id] = threading.Event()
+#                 self.node_timers[node_id] = datetime.now()
+#                 logger.info(f"⏱️ Registered timer for node {node_id}")
+    
+#     def unregister_node(self, node_id: str):
+#         """Remove a node connection"""
+#         with self.lock:
+#             if node_id in self.minute_events:
+#                 del self.minute_events[node_id]
+#                 del self.node_timers[node_id]
+#                 logger.info(f"⏱️ Unregistered timer for node {node_id}")
+    
+#     def wait_for_minute(self, node_id: str) -> bool:
+#         """Wait until the next minute boundary for a node"""
+#         with self.lock:
+#             if node_id not in self.minute_events:
+#                 return False
+            
+#             event = self.minute_events[node_id]
+#             last_time = self.node_timers[node_id]
+#             next_minute = (last_time + timedelta(minutes=1)).replace(second=0, microsecond=0)
+#             wait_seconds = (next_minute - datetime.now()).total_seconds()
+            
+#             if wait_seconds > 0:
+#                 logger.debug(f"⏱️ Node {node_id} waiting {wait_seconds:.1f}s until next minute")
+#                 return event.wait(wait_seconds)
+#             return True
+    
+#     def notify_minute_elapsed(self):
+#         """Notify all nodes that a minute has elapsed"""
+#         with self.lock:
+#             current_time = datetime.now()
+#             for node_id, event in self.minute_events.items():
+#                 self.node_timers[node_id] = current_time
+#                 event.set()
+#                 event.clear()
+#             logger.debug("⏱️ All nodes notified of minute change")
 
-# def handle_node_connection(conn, addr):
-#     """Manage each node connection and handle its data"""
+# node_manager = NodeConnectionManager()
+
+# def handle_node_connection(conn: socket.socket, addr: tuple):
+#     """Manage persistent node connection with minute synchronization"""
 #     node_id = None
 #     try:
-#         # Step 1: Node identification
+#         # Step 1: Initial Handshake
+#         conn.settimeout(30)
 #         conn.sendall(b"NODE_ID_REQUEST")
-#         node_id_response = conn.recv(1024).decode('utf-8').strip()
+#         node_id = conn.recv(1024).decode('utf-8').strip()
         
-#         if not node_id_response.startswith("NODE_"):
+#         if not node_id.startswith("NODE_"):
 #             raise ValueError("Invalid node ID format")
         
-#         node_id = node_id_response
+#         # Register node with connection manager
+#         node_manager.register_node(node_id)
+        
 #         with PROCESSING_LOCK:
 #             NODES[node_id] = {
 #                 'conn': conn,
@@ -397,50 +529,61 @@ if __name__ == "__main__":
         
 #         logger.info(f"🆔 Node {node_id} connected from {addr}")
 #         conn.sendall(b"READY")
+#         conn.settimeout(None)  # Reset to blocking mode
 
-#         # Step 2: Data reception loop
+#         # Step 2: Minute-synchronized data collection
 #         while True:
-#             time.sleep(30)
-#             data = conn.recv(4096)
-#             if not data:
-#                 logger.warning(f"⚠️ No data received from {node_id}")
+#             # Wait for next minute boundary
+#             if not node_manager.wait_for_minute(node_id):
 #                 break
-
-#             current_time = time.time()
+            
 #             try:
-#                 message = json.loads(data.decode('utf-8'))
-#                 logger.info(f"📥 Received data from {node_id}: {message['thread']}")
-
-#                 # Validate message format
-#                 if not all(key in message for key in ['thread', 'data', 'timestamp']):
-#                     raise ValueError("Missing required fields in message")
+#                 # Send READY signal at minute boundary
+#                 conn.sendall(b"READY")
                 
-#                 if message['thread'] not in ['🌧️ Rain Gauge', '💧 Flood Sensor']:
-#                     raise ValueError("Invalid sensor type")
+#                 # Wait for data (with 65s timeout in case of issues)
+#                 conn.settimeout(65)
+#                 data = conn.recv(4096)
+#                 conn.settimeout(None)
+                
+#                 if not data:
+#                     break  # Connection closed
+                
+#                 current_time = time.time()
+#                 message = json.loads(data.decode('utf-8'))
+#                 logger.info(f"📥 Received data from {node_id}")
 
-#                 # Update node activity
+#                 # Validate message
+#                 if not all(key in message for key in ['node_id', 'metrics', 'timestamp']):
+#                     raise ValueError("Invalid message format")
+                
+#                 # Update activity
 #                 with PROCESSING_LOCK:
 #                     NODES[node_id]['last_active'] = current_time
 
-#                 # Add to processing queue
-#                 NODE_QUEUE.put({
+#                 # Queue for processing
+#                 NODE_DATA_QUEUE.put({
 #                     'node_id': node_id,
-#                     'message': message,
-#                     'timestamp': current_time
+#                     'timestamp': message['timestamp'],
+#                     'metrics': message['metrics']
 #                 })
-
-#                 # Acknowledge receipt
+                
 #                 conn.sendall(b"OK_QUEUED")
 
+#             except socket.timeout:
+#                 logger.warning(f"⏰ Node {node_id} missed data window")
+#                 continue
 #             except (json.JSONDecodeError, ValueError) as e:
 #                 logger.error(f"❌ Invalid data from {node_id}: {str(e)}")
 #                 conn.sendall(b"BAD_FORMAT")
 #             except Exception as e:
-#                 logger.error(f"🔴 Unexpected error with {node_id}: {str(e)}")
+#                 logger.error(f"🔴 Error with {node_id}: {str(e)}")
 #                 raise
 
-#     except ConnectionResetError:
+#     except (ConnectionResetError, BrokenPipeError):
 #         logger.warning(f"⚠️ Connection reset by node {node_id or addr}")
+#     except socket.timeout:
+#         logger.warning(f"⏰ Handshake timeout for node {node_id or addr}")
 #     except Exception as e:
 #         logger.error(f"🔴 Connection error with {node_id or addr}: {str(e)}")
 #     finally:
@@ -448,59 +591,106 @@ if __name__ == "__main__":
 #             with PROCESSING_LOCK:
 #                 if node_id in NODES:
 #                     del NODES[node_id]
+#             node_manager.unregister_node(node_id)
 #         conn.close()
 #         logger.info(f"🚪 Node {node_id or addr} disconnected")
 
+# def minute_timer():
+#     """Global timer that synchronizes all nodes to minute boundaries"""
+#     while True:
+#         now = datetime.now()
+#         sleep_time = 60 - now.second
+#         time.sleep(sleep_time)
+#         node_manager.notify_minute_elapsed()
+#         logger.debug("⏰ Global minute synchronization")
 
-# def process_node_data():
-#     """
-#     Process node data from the queue
-#     """
+# def write_to_csv(data_list: List[Dict[str, Any]]):
+#     """Write collected data to CSV"""
+#     if not data_list:
+#         return
+
+#     fieldnames = ['timestamp', 'node_id', 'sensor', 'value']
+#     file_exists = os.path.exists(CSV_FILE)
+    
+#     try:
+#         with open(CSV_FILE, 'a', newline='', encoding='utf-8') as csvfile:
+#             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+#             if not file_exists:
+#                 writer.writeheader()
+            
+#             for record in data_list:
+#                 writer.writerow(record)
+        
+#         logger.info(f"💾 Wrote {len(data_list)} records to CSV")
+
+#     except Exception as e:
+#         logger.error(f"❌ CSV write error: {str(e)}")
+
+# def process_queue():
+#     """Process queued data and manage uploads"""
+#     last_upload = time.time()
+#     UPLOAD_INTERVAL = 3600  # 1 hour
     
 #     while True:
-#         time.sleep(30) # Process each minute
-#         try:
-#             item = NODE_QUEUE.get()
-#             node_id = item['node_id']
-#             message = item['message']
-            
-#             logger.info(f"🔧 Processing {message['thread']} from {node_id}")
-            
-#             #############################################################3
-#             # Process based on sensor type
-#             if message['thread'] == '🌧️ Rain Gauge':
-#                 logger.info(f"🌧️ Rain data: {message['data']}")
-#                 # Rain processing 
+#         # Process at minute boundaries
+#         now = time.time()
+#         time.sleep(60 - (now % 60))
+        
+#         # Collect all available data
+#         records_to_process = []
+#         while not NODE_DATA_QUEUE.empty():
+#             try:
+#                 item = NODE_DATA_QUEUE.get_nowait()
                 
-#             elif message['thread'] == '💧 Flood Sensor':
-#                 logger.info(f"💧 Flood data: {message['data']}")
-#                 # Flood processing
-#             #############################################################
+#                 # Create separate records for each metric
+#                 for sensor, value in item['metrics'].items():
+#                     records_to_process.append({
+#                         'timestamp': item['timestamp'],
+#                         'node_id': item['node_id'],
+#                         'sensor': sensor.replace('🌧️ ', '').replace('💧 ', ''),
+#                         'value': value
+#                     })
+                
+#                 NODE_DATA_QUEUE.task_done()
+#             except queue.Empty:
+#                 break
+        
+#         # Write to CSV and buffer for upload
+#         if records_to_process:
+#             write_to_csv(records_to_process)
             
-#             NODE_QUEUE.task_done()
-#             logger.info(f"✅ Completed processing {message['thread']} from {node_id}")
+#             with PROCESSING_LOCK:
+#                 CSV_BUFFER.extend(records_to_process)
+#                 logger.info(f"📊 Buffer: {len(CSV_BUFFER)} records")
+                
+#                 # Hourly upload check
+#                 if time.time() - last_upload >= UPLOAD_INTERVAL and CSV_BUFFER:
+#                     try:
+#                         uploader_metrics(CSV_BUFFER.copy())
+#                         CSV_BUFFER.clear()
+#                         last_upload = time.time()
+#                     except Exception as e:
+#                         logger.error(f"❌ Upload failed: {str(e)}")
 
-#         except Exception as e:
-#             logger.error(f"❌ Processing error: {str(e)}")
-
+# def uploader_metrics(data: List[Dict[str, Any]]):
+#     """Simulated upload function"""
+#     logger.info(f"⬆️ Uploading {len(data)} records")
+#     # Implement actual upload logic here
 
 # def monitor_nodes():
-#     """
-#     Monitor node connections and handle timeouts
-#     """
-    
+#     """Monitor node connections and handle timeouts"""
 #     while True:
-#         time.sleep(5)  # Check every 5 seconds
+#         time.sleep(5)
 #         current_time = time.time()
 #         inactive_nodes = []
 
 #         with PROCESSING_LOCK:
-#             for node_id, node_info in NODES.items():
+#             for node_id, node_info in list(NODES.items()):
 #                 if current_time - node_info['last_active'] > 120:  # 2 minute timeout
 #                     inactive_nodes.append(node_id)
 
 #             for node_id in inactive_nodes:
-#                 logger.warning(f"⏰ Timeout for node {node_id}, disconnecting")
+#                 logger.warning(f"⏰ Timeout for node {node_id}")
 #                 try:
 #                     if 'conn' in NODES[node_id]:
 #                         NODES[node_id]['conn'].sendall(b"BAD_TIMEOUT")
@@ -508,23 +698,22 @@ if __name__ == "__main__":
 #                 except:
 #                     pass
 #                 del NODES[node_id]
-
+#                 node_manager.unregister_node(node_id)
 
 # def start_server():
-#     """
-#     Start the main server
-#     """
-
+#     """Start the server and worker threads"""
 #     try:
+#         # Start worker threads
+#         threading.Thread(target=minute_timer, daemon=True).start()
+#         threading.Thread(target=process_queue, daemon=True).start()
+#         threading.Thread(target=monitor_nodes, daemon=True).start()
+
+#         # Main server socket
 #         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
 #             server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 #             server_socket.bind((HOST, PORT))
-#             server_socket.listen(5)
+#             server_socket.listen(10)
 #             logger.info(f"🟢 Server started on {HOST}:{PORT}")
-
-#             # Start worker threads
-#             threading.Thread(target=process_node_data, daemon=True).start()
-#             threading.Thread(target=monitor_nodes, daemon=True).start()
 
 #             while True:
 #                 conn, addr = server_socket.accept()
@@ -537,10 +726,8 @@ if __name__ == "__main__":
 #     finally:
 #         sys.exit(0)
 
-
 # if __name__ == "__main__":
 #     start_server()
-
 
 
 ############################################################################################################
@@ -758,53 +945,3 @@ if __name__ == "__main__":
 
 
 
-
-# OLD VERSION
-# ##########################################################################################
-# def start_weather_services():
-    
-
-    
-#     global server_socket, server_running
-    
-#     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-#     server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-
-#     # Verify if a parameter was passed in the execution of main
-#     host =  "127.0.0.1" if len(sys.argv) > 1 else os.getenv('RECEIVER_IP')
-#     port = os.getenv('RECEIVER_PORT')
-    
-
-#     # Ejecutar los servicios de flood_sensor.py y rain_gauge.py y quedarse esperando 
-#       a alguna respuesta para invocar a sus respectivas funciones que hagan fetch al Receiver !!!
-#     try:
-#         server_socket.bind((host, port))
-#         server_socket.listen(5)
-#         print(f"Servidor iniciado en {host}:{port}")
-        
-#         # Configuración de manejo de señales
-#         signal.signal(signal.SIGINT, signal_handler)
-#         signal.signal(signal.SIGTERM, signal_handler)
-        
-#         while server_running:
-#             try:
-#                 client_socket, client_address = server_socket.accept()
-#                 client_thread = threading.Thread(
-#                     target=handle_client, 
-#                     args=(client_socket, client_address),
-#                     daemon=True
-#                 )
-#                 client_thread.start()
-#             except OSError as e:
-#                 if server_running:
-#                     print(f"Error aceptando conexión: {str(e)}")
-#                     break
-#     finally:
-#         if 'server_socket' in globals():
-#             server_socket.close()
-#         print("Servidor detenido")
-# ###############################################################
-
-
-# if __name__ == "__main__":
-#     start_weather_services()
