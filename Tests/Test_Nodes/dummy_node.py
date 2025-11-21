@@ -20,7 +20,7 @@ def get_data():
     return {
         "Sensor": random.choice(["Rain Gauge", "Flood Sensor"]),
         "Metrics": random.uniform(20, 30),
-        "status": random.choice(["OK", "FLOODING"]),
         "Time": time_string
     }
+
 ###########################################################

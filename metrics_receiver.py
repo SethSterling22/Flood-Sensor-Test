@@ -1,13 +1,10 @@
-
 """
 This program opens a server through which different
 nodes can connect. It also synchronizes the information
 these nodes send every minute and queues it for upload.
 """
 
-#import threading
-#import random
-import signal
+
 
 import os
 import sys
@@ -19,7 +16,6 @@ import socket
 import logging
 import datetime
 import threading
-from typing import Dict, Any, List
 from dotenv import load_dotenv
 
 
@@ -35,10 +31,9 @@ STOP_EVENT = threading.Event()
 # Storage {NODE_ID: socket_object}
 CLIENTS_INDEX = {} 
 CLIENT_SEND_EVENTS = {}
-INDEX_LOCK = threading.Lock() # Para asegurar acceso seguro a CLIENTS_INDEX
-# NODES: Dict[str, Any] = {}
-# NODE_DATA_QUEUE = queue.Queue()
-# CSV_BUFFER: List[Dict[str, Any]] = []
+INDEX_LOCK = threading.Lock() # For the clients to start index
+CSV_WRITE_QUEUE = queue.Queue() # Thread for the CSV writing while handling other data
+
 
 
 # === SAVE FILES PATH ===
@@ -75,29 +70,32 @@ def setup_csv():
             writer.writerow(['Node_ID', 'Timestamp', 'Raw_Data']) 
         logger.info("💾 File data %s ready with headers.", CSV_FILE)
     except Exception as e:
-        logger.error("ERROR setting up CSV: %s", e)
+        logger.error("❌ ERROR setting up CSV: %s", e)
 
 
-def save_data_to_csv(data_list, node_id):
+
+def write_to_csv_sync(data_list, node_id):
     """
     Save the data Chunks in the CSV file
     """
 
+    # Calculate the time of the received information
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    # Asumimos que data_list es una lista de strings (puntos de datos crudos)
+    # List with RAW data
     rows = []
 
-    # Si recibimos una lista de diccionarios (JSON), debemos serializarlos de nuevo para el CSV
+    # JSON serialization for CSV
     for item in data_list:
         if isinstance(item, dict) or isinstance(item, list):
-            # Convierte el diccionario/lista a una cadena JSON para guardarlo como 'Raw_Data'
+            # Turn the list to a JSON string to save it as "Raw_Data"
             raw_data_str = json.dumps(item)
         else:
-            # Si es solo una cadena, úsala directamente
+            # Base case
             raw_data_str = str(item)
 
-        rows.append([node_id, now, raw_data_str]) # Nota: La columna 'Timestamp' es la segunda
+        # CSV FORMAT: | NODE_ID | TIMESTAMP | JSON SENSOR DATA |
+        rows.append([node_id, now, raw_data_str])
 
     try:
         with open(CSV_FILE, mode='a', newline='') as file:
@@ -105,27 +103,103 @@ def save_data_to_csv(data_list, node_id):
             writer.writerows(rows)
         logger.info("✅ Saved %d data chunks from NODE ID: %s", len(data_list), node_id)
     except Exception as e:
-        logger.error("Error writing on CSV: %s", e)
+        logger.error("❌ Error writing on CSV: %s", e)
 
 
-    # for raw_data in data_list:
-    #     rows.append([now, node_id, raw_data])
 
-    # try:
-    #     with open(CSV_FILE, mode='a', newline='') as file:
-    #         writer = csv.writer(file)
-    #         writer.writerows(rows)
-    #     logger.info("✅ Guardados %d puntos de datos de NODE ID: %s", len(data_list), node_id)
-    # except Exception as e:
-    #     logger.error("Error al escribir en CSV: %s", e)
+def csv_writer_job():
+    """
+    Thread dedicated to consuming tasks from the
+    CSV_WRITE_QUEUE and writing them to the file.
+    """
+    
+    logger.info("📝 CSV Writer thread started.")
+    while not STOP_EVENT.is_set():
+        try:
+            # Esperar por datos en la cola con un timeout corto para revisar STOP_EVENT
+            # El item_data es una tupla: (data_list, node_id)
+            item_data = CSV_WRITE_QUEUE.get(timeout=1)
+            
+            # Si recibimos un elemento, procesarlo
+            data_list, node_id = item_data
+            
+            # Llamar a la función síncrona de escritura
+            write_to_csv_sync(data_list, node_id)
+            
+            # Mark as done
+            CSV_WRITE_QUEUE.task_done()
 
-
+        except queue.Empty:
+            # Si la cola está vacía, el bucle continúa y revisa STOP_EVENT
+            continue
+        except Exception as e:
+            logger.error("❌ Error processing CSV queue task: %s", e)
+            # Si hay un error, aún debemos marcar la tarea como hecha para que la cola avance
+            if 'item_data' in locals():
+                CSV_WRITE_QUEUE.task_done()
+                
+    logger.info("📝 CSV Writer thread terminated.")
 # ====== CSV FILE CONFIGURATION ======
 
 
+
+# def process_queue():
+#     """Process queued data and manage uploads"""
+#     last_upload = time.time()
+#     UPLOAD_INTERVAL = 3600  # 1 hour
+    
+#     while True:
+#         # Process at minute boundaries
+#         now = time.time()
+#         time.sleep(60 - (now % 60))
+        
+#         # Collect all available data
+#         records_to_process = []
+#         while not NODE_DATA_QUEUE.empty():
+#             try:
+#                 item = NODE_DATA_QUEUE.get_nowait()
+                
+#                 # Create separate records for each metric
+#                 for sensor, value in item['metrics'].items():
+#                     records_to_process.append({
+#                         'timestamp': item['timestamp'],
+#                         'node_id': item['node_id'],
+#                         'sensor': sensor.replace('🌧️ ', '').replace('💧 ', ''),
+#                         'value': value
+#                     })
+                
+#                 NODE_DATA_QUEUE.task_done()
+#             except queue.Empty:
+#                 break
+        
+#         # Write to CSV and buffer for upload
+#         if records_to_process:
+#             write_to_csv(records_to_process)
+            
+#             with PROCESSING_LOCK:
+#                 CSV_BUFFER.extend(records_to_process)
+#                 logger.info(f"📊 Buffer: {len(CSV_BUFFER)} records")
+                
+#                 # Hourly upload check
+#                 if time.time() - last_upload >= UPLOAD_INTERVAL and CSV_BUFFER:
+#                     try:
+#                         uploader_metrics(CSV_BUFFER.copy())
+#                         CSV_BUFFER.clear()
+#                         last_upload = time.time()
+#                     except Exception as e:
+#                         logger.error(f"❌ Upload failed: {str(e)}")
+
+# def uploader_metrics(data: List[Dict[str, Any]]):
+#     """Simulated upload function"""
+#     logger.info(f"⬆️ Uploading {len(data)} records")
+#     # Implement actual upload logic here
+
+
+
+##########################################################################
 def handle_client(conn, addr):
     """
-    Maneja la conexión con un cliente individual.
+    Manage the connection with an individual client.
     """
 
     node_id = None
@@ -139,7 +213,7 @@ def handle_client(conn, addr):
         conn.sendall(b"CONNECTED")
 
         # 2. Receive NODE_ID
-        conn.settimeout(30) # Timeout para el registro inicial
+        conn.settimeout(60) # Timeout para el registro inicial
         node_id_bytes = conn.recv(1024).strip()
 
         if not node_id_bytes:
@@ -153,127 +227,110 @@ def handle_client(conn, addr):
         # 3. Index the client
         with INDEX_LOCK:
             if node_id in CLIENTS_INDEX:
-                logger.warning(f"[{thread_name}] Replacing existing connection for ID: {node_id}")
+                logger.warning("[%s] Replacing existing connection for ID: %s", thread_name, node_id)
             CLIENTS_INDEX[node_id] = conn
 
         conn.sendall(b"ID_RECEIVED")
         logger.info("✅ Sending Response [ID_RECEIVED]")
 
-
+        # Little wait to prevent the concatenation
+        time.sleep(0.05)
 
         client_event = threading.Event()
         with INDEX_LOCK:
             CLIENT_SEND_EVENTS[node_id] = client_event
 
-        # 4. Bucle principal de recepción de datos
+        # Check if there is any data pending to send in queue (DRENAJE DE BUFFER)
+        try:
+            conn.settimeout(0.1) 
+            response_drain = conn.recv(1024) 
+            if response_drain:
+                logger.warning("[%s] Drained leftover data after ID_RECEIVED: %s", thread_name, response_drain.decode().strip())
+        except socket.timeout:
+            # OK, nothig was pending
+            pass
+        except Exception as e:
+            logger.error("[%s] ❌ Error draining buffer: %s", thread_name, e)
+        
+        # 4. Principal loop, data receival
         while not STOP_EVENT.is_set():
-            # Aumentar el timeout para esperar datos después de la señal (30 segundos)
-            # conn.settimeout(180)
 
-            if not client_event.wait(timeout=30):
-            # Si el timeout ocurre, simplemente volvemos a esperar el evento
-            # Esto evita que el recv() se bloquee innecesariamente.
+            if not client_event.wait(timeout=45):
                 continue 
 
-            # El evento se activó (el scheduler envió READY_TO_INDEX)
             client_event.clear() 
 
-            # Recibir datos del cliente
-            # La señal READY_TO_INDEX la envía otro hilo (scheduler), no este.
             try:
-                # El cliente enviará datos después de recibir READY_TO_INDEX
-                conn.settimeout(10) 
-                # conn.settimeout(300) 
+                # Client will send data after receive READY_TO_INDEX
+                conn.settimeout(45) 
 
-                # 5. Process data length
+                # 5. Process data length (length protocol)
                 #################################################
-                length_or_data_bytes = conn.recv(8)
+                
+                # 1. Read length prefix (8 bytes)
+                length_bytes = conn.recv(8)
 
-                if not length_or_data_bytes:
-                    # If the length was not received, the client is disconnected
-                    raise ConnectionResetError("Client disconnected during tranfer.")
-                if length_or_data_bytes.decode()[:7] == "NO_DATA":
-                    # Si es NO_DATA, hemos recibido la data completa (7 bytes)
-                    payload = "NO_DATA"
-                    data_bytes = length_or_data_bytes
+                if not length_bytes:
+                    raise ConnectionResetError("Client disconnected during transfer.")
 
-                else:
-                    data_length = int(length_or_data_bytes.decode())
-                    data_bytes = b''
-                    bytes_received = 0
-
-                    # Receive the data transfer in chunks
-                    while bytes_received < data_length:
-                        remaining_bytes = data_length - bytes_received
-                        chunk = conn.recv(min(4096, remaining_bytes))
-                        if not chunk:
-                            raise ConnectionResetError("Connection lost during data transfer.")
-                        data_bytes += chunk
-                        bytes_received += len(chunk)
-
-                    conn.settimeout(300) # Go back to the inactivity timeout
-
-                    # With the bytes, the next is decode and process
-                    ##################################################
-
-                    # 6. Procesar y guardar la data (JSON)
-                    payload = data_bytes.decode()
-
-                if payload == "NO_DATA":
-                    logger.info(f"[{thread_name}] Client {node_id} reported NO_DATA.")
-                    # Send the ACK message
-                    conn.sendall(b"DATA_RECEIVED")
-                    continue
+                # 2. Decode and validate length
+                length_str = length_bytes.decode()
 
                 try:
-                    data_list = json.loads(payload)
-                except json.JSONDecodeError:
-                    logger.error(f"[{thread_name}] Error decoding JSON received from {node_id}.")
-                    conn.sendall(b"JSON_ERROR")
-                    continue
+                    data_length = int(length_str)
+                except ValueError:
+                    logger.error("[%s] ❌ Protocol error: Invalid length field: %s", thread_name, length_str)
+                    conn.sendall(b"PROTOCOL_ERROR")
+                    return
 
-                # La data_list ahora es una lista de diccionarios, no de strings
-                logger.info(f"[{thread_name}] Received {len(data_list)} chunks of data from {node_id}.")
+                data_bytes = b''
+                bytes_received = 0
 
-                # # Guardar data (Ajustar save_data_to_csv para manejar la lista de diccionarios)
-                # save_data_to_csv(data_list, node_id)
+                # 3. Receive the data transfer in chunks
+                while bytes_received < data_length:
+                    remaining_bytes = data_length - bytes_received
+                    # Read chunks, limited by 4096 or left bytes
+                    chunk = conn.recv(min(4096, remaining_bytes)) 
+                    if not chunk:
+                        raise ConnectionResetError("❌ Connection lost during data transfer.")
+                    data_bytes += chunk
+                    bytes_received += len(chunk)
 
-                # # Procesar la data
-                # data_list = payload.split('\n')
-                # logger.info(f"[{thread_name}] Recibidos {len(data_list)} puntos de data de {node_id}.")
+                # 6. Process and save data (JSON)
+                payload = data_bytes.decode()
 
-                # Save data
-                save_data_to_csv(data_list, node_id)
+                # 7. Logic of: NO_DATA or JSON
+                if payload == "NO_DATA":
+                    logger.info("[%s] Client %s reported NO_DATA.", thread_name, node_id)
+                else:
+                    try:
+                        data_list = json.loads(payload)
+                        logger.info("[%s] Received %d chunks of data from %s. Enqueuing for CSV writer.", thread_name, len(data_list), node_id)
 
-                # 7. Semd ACK to client
+                        # Save data with Thread
+                        CSV_WRITE_QUEUE.put((data_list, node_id))
+
+                    except json.JSONDecodeError:
+                        logger.error(f"[{thread_name}] ❌ Error decoding JSON received from {node_id}.", )
+                        conn.sendall(b"JSON_ERROR")
+                        continue
+
+                # 8. Send ACK to client
                 conn.sendall(b"DATA_RECEIVED")
 
             except socket.timeout:
-                logger.warning(f"[{thread_name}] Cliente {node_id} no envió data a tiempo (Timeout).")
-                # Continuamos el bucle, esperamos la próxima señal
+                logger.warning(f"[{thread_name}] Client {node_id} doesn't send data on time (Timeout).")
                 continue
 
-
             except Exception as e:
-                logger.error(f"[{thread_name}] Error en la comunicación con {node_id}: {e}")
+                logger.error(f"[{thread_name}] ❌ Error en la comunicación con {node_id}: {e}")
                 break
 
     except Exception as e:
-        logger.error(f"[{thread_name}] Error durante el manejo del cliente: {e}")
-
-    # finally:
-    #     # Cleanup: Eliminar el cliente del índice
-    #     if node_id:
-    #         with INDEX_LOCK:
-    #             # if node_id in CLIENTS_INDEX:
-    #             #     del CLIENTS_INDEX[node_id]
-    #             #     logger.info("[%s] Cliente %s desindexado y conexión cerrada.", thread_name, node_id)
-    #             if node_id in CLIENT_SEND_EVENTS:
-    #                 del CLIENT_SEND_EVENTS[node_id]
-    #                 logger.info("[%s] Cliente %s desindexado y conexión cerrada.", thread_name, node_id)
+        logger.error(f"[{thread_name}] ❌ Error during client handling: {e}")
 
     finally:
-        # Cleanup: Eliminar el cliente del índice
+        # Cleanup: Delete the client from index
         if node_id:
             with INDEX_LOCK:
 
@@ -283,31 +340,29 @@ def handle_client(conn, addr):
 
                 if node_id in CLIENT_SEND_EVENTS:
                     del CLIENT_SEND_EVENTS[node_id]
-                    # logger.info("[%s] Cliente %s desindexado y conexión cerrada.", thread_name, node_id) # Log ya está arriba
 
         if conn:
             conn.close()
+##########################################################################
 
 
-
-# --------------------------------------------------------------------------
 
 def scheduler_job():
     """
     Thread to send the sync signal to the clients each minte.
     """
 
-    # Sincronización inicial con el reloj del sistema (similar al cliente)
-    ahora = datetime.datetime.now()
-    segundos_a_esperar = 60 - ahora.second
-    logger.info(f"⏰ Scheduler waiting {segundos_a_esperar}s for initial sync.")
-    time.sleep(segundos_a_esperar)
+    # Initial synchronization of the system clock (similar to client)
+    now = datetime.datetime.now()
+    seconds_to_wait = 60 - now.second
+    logger.info("⏰ Scheduler waiting %s s for initial sync.", seconds_to_wait )
+    time.sleep(seconds_to_wait)
 
     while not STOP_EVENT.is_set():
         now_minute = datetime.datetime.now().strftime("%H:%M:%S")
         logger.info(f"[{now_minute}] 🔔 Sending READY_TO_INDEX signal to {len(CLIENTS_INDEX)} clients...")
 
-        # Iterar sobre una copia de las claves para evitar problemas si otro hilo modifica el dict
+        # Iterate a copy to prevent thread modify the list
         with INDEX_LOCK:
             clients_to_check = list(CLIENTS_INDEX.items())
 
@@ -321,12 +376,16 @@ def scheduler_job():
             except Exception as e:
                 # If fails, client must be disconnected
                 # The thread handle_client will be cleaned
-                logger.warning(f"❌ Falló el envío a {node_id}: {e}")
+                logger.warning("❌ Error sending on Node: %s:\n %s \n Marked to clean...", node_id, e)
+                try:
+                    conn.close() 
+                except:
+                    pass
 
-        # Esperar exactamente 60 segundos para el próximo ciclo
+        # Wait 1 minute for the next cicle
         time.sleep(60)
 
-# --------------------------------------------------------------------------
+
 
 def main_server():
     """
@@ -339,6 +398,10 @@ def main_server():
     # 1. Start the thread for Scheduler
     scheduler = threading.Thread(target=scheduler_job, name="Scheduler")
     scheduler.start()
+
+    # Start data saver thread
+    csv_writer = threading.Thread(target=csv_writer_job, name="CSV-Writer")
+    csv_writer.start()
 
     # 2. Starting the socket servidor
     try:
@@ -356,11 +419,12 @@ def main_server():
                     # Start a new thread to handle the client
                     client_thread = threading.Thread(target=handle_client, args=(conn, addr), name=f"Client-{addr[1]}")
                     client_thread.start()
+
                 except socket.timeout:
                     # Timeout to check if STOP_EVENT is being activated
                     continue
                 except Exception as e:
-                    logger.error(f"Error accepting the connection: {e}")
+                    logger.error(f"❌ Error accepting the connection: {e}")
                     break
 
     except Exception as e:
@@ -429,7 +493,7 @@ if __name__ == "__main__":
 
 # # === GLOBAL VARIABLES ===
 # NODES: Dict[str, Any] = {}
-NODE_DATA_QUEUE = queue.Queue()
+# NODE_DATA_QUEUE = queue.Queue()
 # CSV_BUFFER: List[Dict[str, Any]] = []
 # PROCESSING_LOCK = threading.Lock()
 

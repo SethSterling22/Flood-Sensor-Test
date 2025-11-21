@@ -15,6 +15,7 @@ import threading
 from dotenv import load_dotenv
 
 
+
 # Import sensor functions
 from dummy_node import get_data as dummy_data
 
@@ -29,7 +30,7 @@ os.makedirs(LOG_DIR, exist_ok=True)
 # === CONNETION SETTINGS ===
 RECEIVER_HOST = "127.0.0.1" if len(sys.argv) > 1 else os.getenv('RECEIVER_HOST')
 RECEIVER_PORT = int(os.getenv("RECEIVER_PORT", "4040"))
-NODE_ID = "NODE_Dummy2"  # Must start with "NODE_"
+NODE_ID = "NODE_Dummy1"  # Must start with "NODE_"
 # NODE_ID = f"NODE_{os.getenv('NODE_PREFIX', 'default')}"
 
 
@@ -50,207 +51,75 @@ BUFFER_LOCK = threading.Lock()
 SENSOR_DATA_BUFFER = [] 
 CLIENT_READY = False
 STOP_EVENT = threading.Event()
+MIN_SEND_INTERVAL = 30
+LAST_SENT_TIME = 0
+
+# Just for DEBUGGING
+counter = 0
+counter_lock = threading.Lock()
 
 
-# --- Thread Sensor Funcioon ---
+
+# --- Thread Sensor Function ---
 def listener_job(sensor_name, func):
     """
     Manages sensor data collection and 
     append it to the BUFFER.
     """
 
+    global counter
     global CLIENT_READY
     logger.info("%s started.", sensor_name)
-    
+
     # Receive the information from the Sensors
     while not STOP_EVENT.is_set():
         try:
-            
-            # if CLIENT_READY:
-            #     with BUFFER_LOCK:
-            #         SENSOR_DATA_BUFFER.append(data)
-            #         print("Check packets. ")
-            #         print(SENSOR_DATA_BUFFER)
-            # Start the Threads and wait
-            #data = func()
 
             # CLIENT is READY when NODE_ID is received by the Sever
             if CLIENT_READY:
                 # Call to the function
                 data = func()
                 with BUFFER_LOCK:
+                    with counter_lock:
+                        current_count = counter
+                        counter = 0
                     now = datetime.datetime.now()
                     time_string = f"{now.hour}:{now.minute}:{now.second}"
                     SENSOR_DATA_BUFFER.append({
                         'sensor': sensor_name,
                         'timestamp': time_string,
-                        'value': data
+                        'value': data,
+                        'Counter': current_count
                     })
                     logger.debug("Buffered %s data: %.2f", sensor_name, data)
                 # Wait for 60 seconds (the collection interval)
                 STOP_EVENT.wait(60)
-            # Wait until next measurement interval
-            # time.sleep(POLL_INTERVAL)
-                
+
         except Exception as e:
             logger.error("%s thread error: %s", sensor_name, str(e))
             time.sleep(5)  # Wait before retrying
 
 
-
-# def client():
-#     """
-#     Manages the connection and the messages from the server.
-#     """
-
-#     global CLIENT_READY
-
-#     # 1. Try connection to server
-#     try:
-#         # "With" statements makes socket close automatically
-#         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-#             s.settimeout(300) 
-#             logger.info("📡 Connecting to %s:%d", RECEIVER_HOST, RECEIVER_PORT)
-#             s.connect((RECEIVER_HOST, RECEIVER_PORT))
-
-#             #while True:
-#             # Wait until server connects and send the CONNECTED message
-#             response = s.recv(1024).decode().strip()
-#             logger.info("📡 SERVER response on Connection: %s", response)
-
-#             # Check the connection message
-#             if response != "CONNECTED":
-#                 logger.error("⚠️ Error while connecting on server: %s", response)
-#                 return
-
-#             # 2. Send the NODE_ID to index in the Server
-#             s.sendall(NODE_ID.encode('utf-8'))
-#             response = s.recv(1024).decode().strip()
-#             logger.info("📡 SERVER respond with: %s", response)
-
-            
-#             if response != "ID_RECEIVED":
-#                 logger.error("⚠️ NODE ID not indexed: %s", response)
-#                 return
-
-#             # --- CONNECTION STABLISHED AND NODE REGISTERED ---
-#             # Allows the threads data recording 
-#             CLIENT_READY = True
-#             logger.info("✅ Connection established and ID registered. Starting data collection... 📊")
-
-#             # 3. Principal receiver loop and data sending
-#             while not STOP_EVENT.is_set():
-#                 try:
-#                     # Implicit 300s (5min) Timeout
-#                     # Waits one second to check STOP_EVENT
-#                     s.settimeout(1)
-
-#                     # Wait one minute for the READY_TO_INDEX from the server
-#                     try:
-#                         message = s.recv(1024).decode().strip()
-#                     except socket.timeout:
-#                         continue
-
-#                     # If server is ready to index (A minute from the connection already happened and it's Synchronized):
-#                     if message == "READY_TO_INDEX":
-#                         logger.info("⏰ Server sent READY_TO_INDEX. Preparing to send data...")
-
-#                         # Get and clean BUFFERED data
-#                         with BUFFER_LOCK:
-#                             data_to_send = SENSOR_DATA_BUFFER.copy()
-#                             SENSOR_DATA_BUFFER.clear()
-
-#                         if data_to_send:
-#                             try:
-#                                 #payload_str = json.dumps(data_to_send)
-#                                 payload_str = json.dumps(data_to_send).encode('utf-8')
-#                                 payload_length = str(len(payload_str)).zfill(8).encode('utf-8')
-#                                 logger.info("📤 Sending %s data points.", len(data_to_send))
-#                                 # s.sendall(payload_length) 
-#                                 logger.info("DATA sent:\n %s", data_to_send)
-#                                 # s.sendall(payload)
-#                             except TypeError as e:
-#                                 logger.error("⚠️ Error serializing JSON. Check data format: %s", e)
-#                                 return # Fallo crítico, cerrar conexión
-                            
-#                         else:
-#                             # 2. ESCENARIO 'NO_DATA'
-#                             logger.info("📝 Buffer empty. Sending 'NO_DATA'.")
-#                             payload_str = "NO_DATA"
+def counter_thread():
+    global counter
+    while not STOP_EVENT.is_set():
+        time.sleep(1)  # Increment every second for tracking
+        with counter_lock:
+            counter += 1
 
 
-
-
-
-#                         # 3. CODIFICACIÓN Y PREPARACIÓN DEL PROTOCOLO DE LONGITUD (Común para JSON y NO_DATA)
-#                         payload_bytes = payload_str.encode('utf-8')
-#                         payload_length_bytes = str(len(payload_bytes)).zfill(8).encode('utf-8')
-                        
-#                         # 4. ENVÍO (Longitud + Payload)
-#                         s.sendall(payload_length_bytes) # Envía 8 bytes (ej: b'00000045')
-#                         # logger.info("DATA sent:\n %s", data_to_send) # logging the list before encoding
-#                         s.sendall(payload_bytes) # Envía la data
-
-#                         # 5. Esperando la confirmación del servidor
-#                         s.settimeout(30) # Aumentar temporalmente el timeout
-#                         ack = s.recv(1024).decode().strip()
-#                         s.settimeout(1) # Volver al timeout corto
-
-#                         if ack == "DATA_RECEIVED":
-#                             logger.info("👍 Data successfully indexed by server.")
-#                         elif ack == "JSON_ERROR":
-#                             # 🌟 NUEVO HANDLER: El servidor reportó un error de decodificación
-#                             logger.error("❌ Servidor falló al decodificar la data JSON. La data no fue guardada.")
-#                         else:
-#                             logger.error("❌ Server ACK error: %s", ack)
-
-
-
-
-
-
-
-
-#                         #     # Waiting for the server confirmation
-#                         #     s.settimeout(30) # Increase temporally the timeout time
-#                         #     ack = s.recv(1024).decode().strip()
-#                         #     s.settimeout(1) # Set short timeout again
-
-#                         #     if ack == "DATA_RECEIVED":
-#                         #         logger.info("👍 Data successfully indexed by server.")
-#                         #     else:
-#                         #         logger.error("❌ Server ACK error: %s", ack)
-#                         # else:
-#                         #     logger.info("📝 Buffer empty. Sending 'NO_DATA'.")
-#                         #     s.sendall("NO_DATA") # Send NO_DATA if BUFFER is empty
-
-                            
-
-#                     elif message:
-#                         logger.warning("Received unknown message: %s", message)
-
-#                 except ConnectionResetError:
-#                     logger.error("🚫 Connection lost (Server closed the connection).")
-#                     break
-#                 except Exception as e:
-#                     logger.error("🔌 Fatal error during communication: %s", e)
-#                     break
-
-#     # Catch errors
-#     except socket.error as e:
-#         logger.error("❌ Failed to connect to server: %s", e)
-#     finally:
-#         CLIENT_READY = False
-#         logger.info("🔌 Client socket closed.")
 def client():
     """
     Manages the connection and the messages from the server.
     """
 
     MAX_RETRY_COUNT = 3
-    SHORT_WAIT_TIME = 10  # 10 segundos
-    LONG_WAIT_TIME = 300  # 5 minutos
+    SHORT_WAIT_TIME = 15
+    LONG_WAIT_TIME = 300  # 5 minutes
     retry_count = 0
+
+    # Max ACK size (READY_TO_INDEX = 15)
+    MAX_CMD_LEN = 15
 
     global CLIENT_READY
     while not STOP_EVENT.is_set():
@@ -263,7 +132,8 @@ def client():
                 s.connect((RECEIVER_HOST, RECEIVER_PORT))
 
                 # Wait until server connects and send the CONNECTED message
-                response = s.recv(1024).decode().strip()
+                # Leemos solo el máximo tamaño de comando para prevenir sticking
+                response = s.recv(MAX_CMD_LEN).decode().strip()
                 logger.info("📡 SERVER response on Connection: %s", response)
 
                 # Check the connection message
@@ -276,19 +146,25 @@ def client():
 
                 # 2. Send the NODE_ID to index in the Server
                 s.sendall(NODE_ID.encode('utf-8'))
-                response = s.recv(1024).decode().strip()
+                
+                # Read the server message
+                response_bytes = s.recv(MAX_CMD_LEN) 
+                response = response_bytes.decode().strip()
                 logger.info("📡 SERVER respond with: %s", response)
 
                 
-                if response != "ID_RECEIVED":
+                if response.startswith("ID_RECEIVED"):
+                    # --- CONNECTION STABLISHED AND NODE REGISTERED ---
+                    CLIENT_READY = True
+                    logger.info("✅ Connection established and ID registered. Starting data collection... 📊")
+
+                    if len(response) > 11: # 'ID_RECEIVED' tiene 11 caracteres
+                        logger.warning("⚠️ Extra command data received during registration: %s", response[11:])
+
+                else:
                     logger.error("⚠️ NODE ID not indexed: %s", response)
                     raise socket.error(f"NODE ID not indexed. Server response: '{response}'")
 
-                # --- CONNECTION STABLISHED AND NODE REGISTERED ---
-                # Allows the threads data recording 
-                CLIENT_READY = True
-                logger.info("✅ Connection established and ID registered. Starting data collection... 📊")
-                
                 # 3. Principal receiver loop and data sending
                 while not STOP_EVENT.is_set():
                     try:
@@ -297,20 +173,27 @@ def client():
 
                         # Wait one minute for the READY_TO_INDEX from the server
                         try:
-                            message = s.recv(1024).decode().strip()
+                            # Just read the 14 bytes of "READY_TO_INDEX"
+                            message_bytes = s.recv(MAX_CMD_LEN) 
+
+                            # If there's no bytes (timeout), retry
+                            if not message_bytes:
+                                continue
+                            # Receive the message
+                            message = message_bytes.decode().strip()
+
                         except socket.timeout:
                             continue
 
                         # If server is ready to index:
-                        if message == "READY_TO_INDEX":
+                        if message.startswith("READY_TO_INDEX"):
                             logger.info("⏰ Server sent READY_TO_INDEX. Preparing to send data...")
                             
                             # Get and clean BUFFERED data
                             with BUFFER_LOCK:
                                 data_to_send = SENSOR_DATA_BUFFER.copy()
-                                
 
-                            # --- CONSTRUCCIÓN DEL PAYLOAD ---
+                            # --- CONSTRUCCIÓN DEL PAYLOAD (Lógica correcta de longitud-prefijo) ---
                             if data_to_send:
                                 # 1. Serializar data estructurada a CADENA JSON (str)
                                 try:
@@ -319,29 +202,27 @@ def client():
                                     logger.info("DATA sent:\n %s", data_to_send)
                                 except TypeError as e:
                                     logger.error("⚠️ Error serializing JSON. Check data format: %s", e)
-                                    return # Fallo crítico, cerrar conexión
-                                
+                                    # Al no limpiar el buffer, se reintenta en el próximo ciclo
+                                    break 
+
                             else:
                                 # 2. ESCENARIO 'NO_DATA' (str)
                                 logger.info("📝 Buffer empty. Sending 'NO_DATA'.")
                                 payload_str = "NO_DATA"
 
-                            # 3. CODIFICACIÓN Y PREPARACIÓN DEL PROTOCOLO DE LONGITUD (Común para todos los casos)
-                            
-                            # Convertir el contenido (str) a BYTES
+                            # 3. CODIFICATION AND PREPARATION OF LENGTH PROTOCOL 
                             payload_bytes = payload_str.encode('utf-8')
-                            
-                            # Calcular la longitud de los bytes y codificar el prefijo de 8 bytes
                             payload_length_bytes = str(len(payload_bytes)).zfill(8).encode('utf-8')
-                            
-                            # 4. ENVÍO (Longitud + Payload)
-                            s.sendall(payload_length_bytes) # Envía 8 bytes (prefijo)
-                            s.sendall(payload_bytes)        # Envía la data
 
-                            # 5. Esperando la confirmación del servidor
-                            s.settimeout(30) # Aumentar temporalmente el timeout
-                            ack = s.recv(1024).decode().strip()
-                            s.settimeout(1) # Volver al timeout corto
+                            # 4. Send (Length + Payload)
+                            s.sendall(payload_length_bytes)
+                            s.sendall(payload_bytes)        
+
+                            # 5. Wait Server confirmation
+                            s.settimeout(60)
+                            ack_bytes = s.recv(MAX_CMD_LEN)
+                            ack = ack_bytes.decode().strip()
+                            s.settimeout(1)
 
                             if ack == "DATA_RECEIVED":
                                 logger.info("👍 Data successfully indexed by server.")
@@ -349,8 +230,13 @@ def client():
                                 with BUFFER_LOCK:
                                     SENSOR_DATA_BUFFER.clear()
 
+                            elif ack.startswith("DATA_RECEIVED"):
+                                logger.warning("⚠️ Received concatenated ACK: %s", ack)
+                                with BUFFER_LOCK:
+                                    SENSOR_DATA_BUFFER.clear()
+
+
                             elif ack == "JSON_ERROR":
-                                # 🌟 HANDLER: El servidor reportó un error de decodificación
                                 logger.error("❌ Server failed decoding JSON data. The data was not saved.")
                                 break
                             else:
@@ -369,11 +255,11 @@ def client():
 
         except socket.error as e:
             logger.error("❌ Failed to connect to server: %s", e)
-            CLIENT_READY = False # Asegura que la recopilación de datos se detenga si se pierde la conexión
-            
-            # 🌟 Lógica de espera escalonada
+            CLIENT_READY = False 
+
+            # Increase the counter
             retry_count += 1
-            
+
             if retry_count <= MAX_RETRY_COUNT:
                 logger.info("⏳ Waiting %d seconds before next retry...", SHORT_WAIT_TIME)
                 time.sleep(SHORT_WAIT_TIME)
@@ -381,18 +267,10 @@ def client():
                 logger.info("😴 Failed %d times. Waiting %d seconds (5 minutes) before resetting attempts...", 
                             MAX_RETRY_COUNT, LONG_WAIT_TIME)
                 time.sleep(LONG_WAIT_TIME)
-                retry_count = 0 # Resetear el contador después de la espera larga
+                retry_count = 0 
 
-        finally:
-            CLIENT_READY = False
-            logger.info("🔌 Client socket closed.")
-
-    # Thread closed
+    CLIENT_READY = False
     logger.info("🔌 Client thread terminated.")
-
-
-
-
 
 
 if __name__ == "__main__":
@@ -404,7 +282,9 @@ if __name__ == "__main__":
     # Sensor Start
     sensors = [
         threading.Thread(target=listener_job, args=("Rain Gauge", dummy_data)),
-        threading.Thread(target=listener_job, args=("Flood Sensor", dummy_data))
+        threading.Thread(target=listener_job, args=("Flood Sensor", dummy_data)),
+
+        threading.Thread(target=counter_thread)
     ]
 
     for sensor in sensors:
