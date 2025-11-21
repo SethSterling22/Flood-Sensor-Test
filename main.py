@@ -10,10 +10,6 @@ from both sensors.
 
 
 
-
-
-
-
 import os
 import sys
 import time
@@ -67,7 +63,7 @@ STOP_EVENT = threading.Event()
 
 
 
-# --- Thread Sensor Funcioon ---
+# === Thread Sensor Function ===
 def listener_job(sensor_name, func):
     """
     Manages sensor data collection and 
@@ -95,8 +91,6 @@ def listener_job(sensor_name, func):
                     logger.debug("Buffered %s data: %.2f", sensor_name, data)
                 # Wait for 60 seconds (the collection interval)
                 STOP_EVENT.wait(60)
-            # Wait until next measurement interval
-            # time.sleep(POLL_INTERVAL)
 
         except Exception as e:
             logger.error("%s thread error: %s", sensor_name, str(e))
@@ -110,8 +104,8 @@ def client():
     """
 
     MAX_RETRY_COUNT = 3
-    SHORT_WAIT_TIME = 15  # 15 segundos
-    LONG_WAIT_TIME = 300  # 5 minutos
+    SHORT_WAIT_TIME = 15
+    LONG_WAIT_TIME = 300  # 5 minutes
     retry_count = 0
 
     # Max ACK size (READY_TO_INDEX = 15)
@@ -147,20 +141,22 @@ def client():
                 response = response_bytes.decode().strip()
                 logger.info("📡 SERVER respond with: %s", response)
 
-                
+
+                # === CONNECTION STABLISHED AND NODE REGISTERED ===
                 if response.startswith("ID_RECEIVED"):
-                    # --- CONNECTION STABLISHED AND NODE REGISTERED ---
+
                     CLIENT_READY = True
                     logger.info("✅ Connection established and ID registered. Starting data collection... 📊")
                     
                     if len(response) > 11: # 'ID_RECEIVED' tiene 11 caracteres
                         logger.warning("⚠️ Extra command data received during registration: %s", response[11:])
-                
+
                 else:
                     logger.error("⚠️ NODE ID not indexed: %s", response)
                     raise socket.error(f"NODE ID not indexed. Server response: '{response}'")
-                
-                
+                # === CONNECTION STABLISHED AND NODE REGISTERED ===
+
+
                 # 3. Principal receiver loop and data sending
                 while not STOP_EVENT.is_set():
                     try:
@@ -215,7 +211,7 @@ def client():
                             # 3. CODIFICATION AND PREPARATION OF LENGTH PROTOCOL 
                             payload_bytes = payload_str.encode('utf-8')
                             payload_length_bytes = str(len(payload_bytes)).zfill(8).encode('utf-8')
-                            
+
                             # 4. Send (Length + Payload)
                             s.sendall(payload_length_bytes) 
                             s.sendall(payload_bytes)       
@@ -227,13 +223,13 @@ def client():
                             s.settimeout(1) 
 
                             if ack == "DATA_RECEIVED" or ack.startswith("DATA_RECEIVED"):
-                                
+
                                 # If it is concatenated, send the warning
                                 if ack.startswith("DATA_RECEIVED") and ack != "DATA_RECEIVED":
                                     logger.warning("⚠️ Received concatenated ACK: %s", ack)
                                 else:
                                     logger.info("👍 Data successfully indexed by server.")
-                                
+
                                 # Clear buffer
                                 with BUFFER_LOCK:
                                     SENSOR_DATA_BUFFER.clear() 
@@ -255,13 +251,14 @@ def client():
                         logger.error("🔌 Fatal error during communication: %s", e)
                         break
 
+        # Error management
         except socket.error as e:
             logger.error("❌ Failed to connect to server: %s", e)
             CLIENT_READY = False 
-            
+
             # Increase the counter
             retry_count += 1
-            
+
             if retry_count <= MAX_RETRY_COUNT:
                 logger.info("⏳ Waiting %d seconds before next retry...", SHORT_WAIT_TIME)
                 time.sleep(SHORT_WAIT_TIME)
@@ -277,10 +274,6 @@ def client():
 
 
 if __name__ == "__main__":
-    """
-    Work with thread synchronization, start and
-    end the program.
-    """
 
     # Sensor Start
     sensors = [
@@ -309,306 +302,4 @@ if __name__ == "__main__":
         client_thread.join() # Wait until the client stop
         logger.info("👋 All threads stopped")
         sys.exit(0)
-
-
-
-
-
-# def send_to_receiver(thread_name, data):
-#     """Send sensor data to the receiver server"""
-#     payload = {
-#         "thread": thread_name,
-#         "timestamp": datetime.now().isoformat(),
-#         "data": data
-#     }
-
-#     try:
-#         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-#             s.settimeout(10)
-            
-#             logger.info(f"📡 Connecting to server at {RECEIVER_HOST}:{RECEIVER_PORT}")
-#             s.connect((RECEIVER_HOST, RECEIVER_PORT))
-
-#             # Node identification
-#             id_request = s.recv(1024)
-#             if id_request != b"NODE_ID_REQUEST":
-#                 logger.error("❌ Protocol error: expected ID request")
-#                 return False
-
-#             s.sendall(NODE_ID.encode('utf-8'))
-#             response = s.recv(1024)
-            
-#             if response != b"READY":
-#                 logger.error(f"❌ Server not ready: {response.decode()}")
-#                 return False
-
-#             # Send data
-#             s.sendall(json.dumps(payload).encode('utf-8'))
-#             final_response = s.recv(1024).decode('utf-8')
-            
-#             if final_response == "OK_QUEUED":
-#                 logger.info(f"✅ Data queued at server ({thread_name})")
-#                 return True
-#             else:
-#                 logger.warning(f"⚠️ Server response: {final_response}")
-#                 return False
-
-#     except socket.timeout:
-#         logger.error("⌛ Connection timeout with server")
-#     except ConnectionRefusedError:
-#         logger.error("🔌 Connection refused - server may be down")
-#     except Exception as e:
-#         logger.error(f"🔴 Unexpected error: {str(e)}")
-#     return False
-
-
-# def sensor_job(thread_name, func):
-#     """
-#     Thread worker for each sensor
-#     """
-    
-#     retry_count = 0
-#     max_retries = 3
-    
-#     while not STOP_EVENT.is_set():
-#         try:
-#             data = func()
-#             logger.info(f"[{thread_name}] Collected data: {data}")
-            
-#             success = send_to_receiver(thread_name, data)
-            
-#             if not success and retry_count < max_retries:
-#                 retry_count += 1
-#                 logger.warning(f"🔁 [{thread_name}] Retry {retry_count}/{max_retries} in 30s...")
-#                 STOP_EVENT.wait(30)  # Short wait for retry
-#                 continue
-                
-#             retry_count = 0
-#             STOP_EVENT.wait(120)  # Normal 60-second interval
-            
-#         except Exception as e:
-#             logger.error(f"❗❗ [{thread_name}] Critical error: {str(e)}")
-#             STOP_EVENT.wait(120)  # Wait before next attempt
-
-
-# if __name__ == "__main__":
-#     # Start sensor threads
-#     sensors = [
-#         threading.Thread(target=sensor_job, args=("🌧️ Rain Gauge", rain_gauge_data)),
-#         threading.Thread(target=sensor_job, args=("💧 Flood Sensor", flood_sensor_data))
-#     ]
-
-#     for sensor in sensors:
-#         sensor.start()
-
-#     try:
-#         while True:
-#             time.sleep(1)
-#     except KeyboardInterrupt:
-#         logger.info("🛑 Stopping all sensors...")
-#         STOP_EVENT.set()
-#         for sensor in sensors:
-#             sensor.join()
-#         logger.info("👋 All sensors stopped")
-#         sys.exit(0)
-
-
-
-
-
-
-
-
-# === SEND INFORMATION TO THE SERVER ===
-# def send_to_receiver(thread_name, data):
-#     """Collect data and send it to the server"""
-
-#     # Packet structure
-#     payload = {
-#         "thread": thread_name,
-#         "timestamp": datetime.now().isoformat(),
-#         "data": data
-#     }
-
-#     try:
-#         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-#             s.settimeout(10)  # Connection timeout
-            
-#             logger.info(f"📡 Connecting to {RECEIVER_HOST}:{RECEIVER_PORT}")
-#             s.connect((RECEIVER_HOST, RECEIVER_PORT))
-
-#             # Step 1: Identification
-#             id_request = s.recv(1024)
-#             if id_request != b"NODE_ID_REQUEST":
-#                 logger.error("⚠️ Protocol error: expected ID request")
-#                 return
-
-#             s.sendall(NODE_ID.encode('utf-8'))
-#             response = s.recv(1024)
-            
-#             if response != b"READY":
-#                 logger.error(f"⚠️ Server not ready: {response.decode()}")
-#                 return
-
-#             # Step 2: Send data
-#             s.sendall(json.dumps(payload).encode('utf-8'))
-#             final_response = s.recv(1024).decode('utf-8')
-            
-#             if final_response == "OK_QUEUED":
-#                 logger.info(f"✅ Data queued for processing ({thread_name})")
-#             else:
-#                 logger.warning(f"⚠️ Server response: {final_response}")
-
-#     except socket.timeout:
-#         logger.error("⌛ Connection timeout")
-#     except Exception as e:
-#         logger.error(f"🔴 Connection error: {str(e)}")
-
-
-# # === THREADS MANAGER ===
-# def listener_job(thread_name, func):
-#     """Sync the data from threads"""
-#     while not STOP_EVENT.is_set():
-#         try:
-#             data = func()
-#             logger.info(f"[{thread_name}] Retrieved data: {data}")
-#             send_to_receiver(thread_name, data)
-#         except Exception as e:
-#             logger.error(f"[{thread_name}] Error: {str(e)}")
-        
-#         STOP_EVENT.wait(60)  # Wait 60 seconds until STOP_EVENT
-
-
-# # === START THE PROGRAMS IN THREADS ===
-# if __name__ == "__main__":
-#     # Sensor Start
-#     sensors = [
-#         threading.Thread(target=listener_job, args=("🌧️ Rain Gauge", rain_gauge_data)),
-#         threading.Thread(target=listener_job, args=("💧 Flood Sensor", flood_sensor_data))
-#     ]
-
-#     for sensor in sensors:
-#         sensor.start()
-
-#     try:
-#         while True:
-#             time.sleep(1)
-#     except KeyboardInterrupt:
-#         logger.info("🛑 Stopping all threads...")
-#         STOP_EVENT.set()
-#     finally:
-#         for sensor in sensors:
-#             sensor.join()
-#         logger.info("👋 All threads stopped")
-#         sys.exit(0)
-
-
-###########################################################################################
-
-
-
-# # === SEND INFORMATION TO THE SERVER ===
-# def send_to_receiver(thread_name, data):
-
-#     # Must be changed !!!
-#     payload = {
-#         "thread": thread_name,
-#         "timestamp": datetime.now().isoformat(),
-#         "data": data
-#     }
-
-#     try:
-#         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-#             print(f"📡 Connecting to: {RECEIVER_HOST}:{RECEIVER_PORT}")
-#             logger.info(f"📡 Connecting to: {RECEIVER_HOST}:{RECEIVER_PORT}")
-
-#             s.connect((RECEIVER_HOST, RECEIVER_PORT))
-
-#             # Wait for the Connection Server response
-#             handshake = s.recv(1024).decode("utf-8")
-
-#             if handshake != "READY":
-#                 print(f"[{thread_name}] ⚠️ Server not ready, handshake failed: {handshake}")
-#                 logger.info(f"[{thread_name}] ⚠️ Server not ready, handshake failed: {handshake}")
-#                 return
-#             print(f"[{thread_name}] ✅ Handshake OK")
-
-
-#             # Send data
-#             s.sendall(json.dumps(payload).encode("utf-8"))
-
-#             # Waiting for the acknowledgement
-#             response = s.recv(1024).decode("utf-8")
-#             print(f"[{thread_name}] Server response: {response}")
-#             logger.info(f"[{thread_name}] Server response: {response}")
-            
-#     except Exception as e:
-#         # Esto asegura que el mensaje de error se registre inmediatamente
-#         print(f"[{thread_name}] ⚠️ Error sending data: {e}")
-#         logger.error(f"[{thread_name}] ⚠️ Error sending data: {e}")
-
-
-# # def listener_job(name, func):
-# #     while True:
-# #         data = func()
-# #         print(f"[{name}] Generated data: {data}")
-# #         send_to_receiver(name, data)
-# #         time.sleep(60)  # Sleep for 1 minute
-
-
-# # === Cierre Cooperativo de Hilos ===
-# STOP_EVENT = threading.Event()
-
-
-# def listener_job(thread_name, func):
-#     # Cambiamos while True a while not STOP_EVENT.is_set()
-#     while not STOP_EVENT.is_set():
-#         data = func()
-#         print(f"[{thread_name}] Retrieved data: {data}")
-#         logger.info(f"[{thread_name}] Retrieved data: {data}")
-
-#         # if thread_name == "Flood Sensor":
-#         #     if data == "Detected":
-#         #         logger.info("Flooding has been DETECTED and sent to submmit the Model!")
-#         #     elif data == "Not Detected":
-#         #         logger.info("No flooding detected")
-
-
-#         send_to_receiver(thread_name, data)
-        
-#         # Make all the signals wait for 1 minute to be sent again
-#         STOP_EVENT.wait(60)
-
-
-# # # === START THE PROGRAMS IN THREADS ===
-# if __name__ == "__main__":
-#     t1 = threading.Thread(target=listener_job, args=("🌧️ Rain Gauge", rain_gauge_data))
-#     t2 = threading.Thread(target=listener_job, args=("💧 Flood Sensor", flood_sensor_data))
-
-#     t1.start()
-#     t2.start()
-
-
-#     try:
-#         # Espera en un bucle ligero para que la interrupción de teclado funcione bien
-#         while True:
-#             time.sleep(1)
-
-#     except KeyboardInterrupt:
-#         logger.info("Stopping all threads...")
-#         # 1. Levanta la bandera: Esto rompe los bucles while de listener_job
-#         STOP_EVENT.set() 
-        
-#     finally:
-#         # 2. Espera a que los hilos terminen (join)
-#         t1.join()
-#         t2.join()
-
-#         # 3. GARANTÍA FINAL: Llama a shutdown después de que los hilos mueren
-#         logging.shutdown() 
-#         logger.info("All threads stopped. Program exit.")
-#         sys.exit(0)
-
-#     # t1.join()
-#     # t2.join()
 

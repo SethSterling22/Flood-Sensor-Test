@@ -295,6 +295,7 @@ def handle_client(conn, addr):
                         raise ConnectionResetError("❌ Connection lost during data transfer.")
                     data_bytes += chunk
                     bytes_received += len(chunk)
+                #################################################
 
                 # 6. Process and save data (JSON)
                 payload = data_bytes.decode()
