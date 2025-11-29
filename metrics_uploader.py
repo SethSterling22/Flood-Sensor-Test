@@ -64,7 +64,7 @@ def get_previous_hour_file():
 
 def is_time_to_upload():
     """Check if current time is between HH:05:00 and HH:05:59 UTC."""
-    now = datetime.utcnow()
+    now = datetime.datetime.now()
     # return now.minute == 5
     return True
 

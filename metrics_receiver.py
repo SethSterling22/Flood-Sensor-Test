@@ -28,11 +28,14 @@ PORT = int(os.getenv("RECEIVER_PORT") or 4040)
 
 # === GLOBAL VARIABLES AND LOCKS ===
 STOP_EVENT = threading.Event()
+RECEIVED_ACK = False
 # Storage {NODE_ID: socket_object}
 CLIENTS_INDEX = {} 
 CLIENT_SEND_EVENTS = {}
 INDEX_LOCK = threading.Lock() # For the clients to start index
 CSV_WRITE_QUEUE = queue.Queue() # Thread for the CSV writing while handling other data
+CLIENT_SEND_READY_FLAGS = {} 
+CLIENT_FLAG_LOCK = threading.Lock()
 
 
 
@@ -143,6 +146,290 @@ def csv_writer_job():
 
 
 
+
+
+def handle_client(conn, addr):
+    """
+    Manage the connection with an individual client, with minute-precision synchronization.
+    """
+    node_id = None
+    global RECEIVED_ACK
+    client_address = f"{addr[0]}:{addr[1]}"
+    thread_name = threading.current_thread().name
+
+    logger.info("[%s] 🤝 New connection from: %s", thread_name, client_address)
+
+    try:
+        # 1. Confirm connection and wait for ID
+        conn.settimeout(30)
+        try:
+            conn.sendall(b"CONNECTED")
+        except Exception:
+            conn.close() 
+            return
+
+        # 2. Receive NODE_ID
+        try:
+            node_id_bytes = conn.recv(1024).strip()
+            node_id = node_id_bytes.decode()
+        except socket.timeout:
+            logger.warning("[%s] Client %s did not send ID. Closing...", thread_name, client_address)
+            conn.close()
+            return
+
+        # Catch node ID and concatenate ip and port to be unique
+        node_id = f"{node_id}|{client_address}:"
+        logger.info("[%s] NODE_ID Received: %s", thread_name, node_id)
+        try:
+            # 3. Index the client
+            with INDEX_LOCK:
+                if node_id in CLIENTS_INDEX:
+                    logger.warning("[%s] Replacing existing connection for ID: %s", thread_name, node_id)
+                CLIENTS_INDEX[node_id] = conn
+
+                # Send ACK
+                conn.sendall(b"ID_RECEIVED")
+                logger.info("✅ Sending Response [ID_RECEIVED] to %s", node_id)
+
+        except Exception as e:
+            logger.error("❌ Failed to index NODE_ID %s: %s", node_id, e)
+            conn.sendall(b"INDEX_FAILED")
+            conn.close()
+            return
+
+        # Initial synchronization to the next minute boundary
+        now = datetime.datetime.now()
+        seconds_to_wait = (60 - now.second) - (now.microsecond / 1_000_000.0)
+        if seconds_to_wait > 0:
+            logger.info("[%s] ⏳ Waiting %.2f seconds for initial sync with %s", 
+                        thread_name, seconds_to_wait, node_id)
+            time.sleep(seconds_to_wait)
+
+        # Main loop with minute-precision synchronization
+        while not STOP_EVENT.is_set():
+            try:
+                # Send READY_TO_INDEX exactly at minute boundary
+                conn.settimeout(5)
+                conn.sendall(b"READY_TO_INDEX")
+                logger.info("[%s] 🔔 Sent READY_TO_INDEX to %s at %s", 
+                            thread_name, node_id, datetime.datetime.now().strftime("%H:%M:%S"))
+
+                # Client will send data after receiving READY_TO_INDEX
+                conn.settimeout(50) 
+
+                # Process data length (length protocol)
+                length_bytes = conn.recv(8)
+                if not length_bytes:
+                    raise ConnectionResetError("Client disconnected during transfer.")
+
+                length_str = length_bytes.decode()
+                try:
+                    data_length = int(length_str)
+                except ValueError:
+                    logger.error("[%s] ❌ Protocol error: Invalid length field: %s", thread_name, length_str)
+                    conn.sendall(b"PROTOCOL_ERROR")
+                    return
+
+                # Receive the data in chunks
+                data_bytes = b''
+                bytes_received = 0
+                while bytes_received < data_length:
+                    remaining_bytes = data_length - bytes_received
+                    chunk = conn.recv(min(4096, remaining_bytes)) 
+                    if not chunk:
+                        raise ConnectionResetError("❌ Connection lost during data transfer.")
+                    data_bytes += chunk
+                    bytes_received += len(chunk)
+
+                # Send ACK to client
+                try:
+                    conn.sendall(b"DATA_RECEIVED")
+                    logger.info("👍 DATA_RECEIVED sent to client %s", node_id)
+                except:
+                    pass
+
+                # Process and save data
+                try:
+                    payload = data_bytes.decode()
+                    if payload == "NO_DATA":
+                        logger.info("[%s] Client %s reported NO_DATA.", thread_name, node_id)
+                    else:
+                        try:
+                            data_list = json.loads(payload)
+                            logger.info("[%s] 📥 Received %d chunks from %s. Enqueuing.", 
+                                        thread_name, len(data_list), node_id)
+                            CSV_WRITE_QUEUE.put((data_list, node_id)) 
+                        except json.JSONDecodeError:
+                            logger.error("[%s] ❌ JSON Error from %s. Data discarded.", thread_name, node_id)
+                except Exception as e:
+                    logger.error("[%s] ❌ Processing error: %s", thread_name, e)
+
+                # Calculate time until next minute boundary
+                now = datetime.datetime.now()
+                seconds_to_wait = (60 - now.second) - (now.microsecond / 1_000_000.0)
+                if seconds_to_wait > 0:
+                    time.sleep(seconds_to_wait)
+
+            except socket.timeout:
+                logger.warning("[%s] Client %s doesn't respond on time (Timeout).", thread_name, node_id)
+                break
+
+            except (ConnectionResetError, BrokenPipeError, OSError) as e:
+                logger.warning("[%s] Client failed data reception: %s. Cleaning up: \n %s", 
+                            thread_name, node_id, e)
+                break
+
+    except Exception as e:
+        logger.error("[%s] ❌ Error during client handling: %s", thread_name, e)
+
+    finally:
+        # Cleanup
+        if node_id:
+            safe_cleanup(node_id, conn)
+        elif conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+
+
+
+def safe_cleanup(node_id, client_conn=None):
+    """
+    Desindexa y cierra de forma segura los recursos asociados a un nodo.
+
+    Se utiliza el lock global para asegurar la atomicidad de la operación.
+
+    Args:
+        node_id (str): El ID del nodo a limpiar.
+        client_conn (socket.socket, optional): La instancia de la conexión
+        a cerrar. Se usa para verificar si
+        el hilo actual es el dueño de la conexión
+        indexada, previniendo el "hilo zombie"
+        de borrar una nueva conexión activa.
+    """
+    thread_name = threading.current_thread().name
+
+    with INDEX_LOCK:
+        conn_to_close = None
+
+        # 1. Limpiar CLIENTS_INDEX
+        if node_id in CLIENTS_INDEX:
+            # Esto evita que un hilo antiguo mate una conexión nueva.
+            if client_conn is not None and CLIENTS_INDEX[node_id] is not client_conn:
+                # El cliente indexado es diferente al que estamos intentando limpiar (es una reconexión).
+                # Solo cerramos la conexión que se nos pasó, pero NO la desindexamos.
+                logging.warning("[%s] ⚠️ Ignoring desindexing for %s: A newer connection is already active.", thread_name, node_id)
+                conn_to_close = client_conn
+
+            else:
+                # El nodo no se ha reconectado o somos el dueño de la conexión activa.
+                conn_to_close = CLIENTS_INDEX.pop(node_id, None)
+                logging.info("[%s] Client %s desindexed.", thread_name, node_id)
+
+        # 2. Limpiar CLIENT_SEND_EVENTS (independiente de la conexión)
+        if node_id in CLIENT_SEND_EVENTS:
+            CLIENT_SEND_EVENTS.pop(node_id, None)
+
+    # 3. Cerrar la conexión (Fuera del lock, si es posible, para evitar bloqueos)
+    if conn_to_close:
+        try:
+            # Si el scheduler llama a esta función, el socket podría estar cerrado.
+            conn_to_close.shutdown(socket.SHUT_RDWR)
+            conn_to_close.close()
+            logging.info("[%s] Connection %s closed.", thread_name, node_id)
+        except OSError as e:
+            # Es normal si el socket ya está cerrado por el cliente.
+            logging.debug("[%s] Socket %s already closed: %s", thread_name, node_id, e)
+        except Exception as e:
+            logging.error("[%s] Error closing the socket %s: %s", thread_name, node_id, e)
+
+
+
+
+
+
+def main_server():
+    """
+    Función principal que inicia el servidor y los hilos.
+    """
+
+    # Set up the CSV files
+    setup_csv()
+
+    # 1. Start the thread for Scheduler
+    # scheduler = threading.Thread(target=scheduler_job, name="Scheduler")
+    # scheduler.start()
+
+    # Start data saver thread
+    csv_writer = threading.Thread(target=csv_writer_job, name="CSV-Writer")
+    csv_writer.start()
+
+    # 2. Starting the socket server
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) # Allow to reuse the Port
+            s.bind((HOST, PORT))
+            s.listen(50)
+            logger.info(f"📡 Server listening to {HOST}:{PORT}")
+
+            # 3. Loop to accept connections
+            s.settimeout(0.1) # Timeout to check STOP_EVENT
+            while not STOP_EVENT.is_set():
+                try:
+                    conn, addr = s.accept()
+                    # Start a new thread to handle the client
+                    client_thread = threading.Thread(target=handle_client, args=(conn, addr), name=f"{addr[1]}")
+                    client_thread.start()
+
+                except socket.timeout:
+                    # Timeout to check if STOP_EVENT is being activated
+                    continue
+                except Exception as e:
+                    logger.error(f"❌ Error accepting the connection: {e}")
+                    break
+
+    except Exception as e:
+        logger.critical(f"❌ Fatal error starting the server: {e}")
+
+    finally:
+        logger.info("🛑 Stopped, waiting to ending...")
+        STOP_EVENT.set()
+        # scheduler.join()
+
+        # Close all active connection
+        with INDEX_LOCK:
+            for node_id, conn in CLIENTS_INDEX.items():
+                try:
+                    conn.close()
+                except:
+                    pass
+            CLIENTS_INDEX.clear()
+
+        logger.info("👋 Server stopped.")
+        sys.exit(0)
+
+
+if __name__ == "__main__":
+    try:
+        main_server()
+    except KeyboardInterrupt:
+        logger.info("👋 Stopped by user. Starting secure stop...")
+        STOP_EVENT.set()
+        # Tiny lapse to detect the stop
+        time.sleep(2)
+
+
+
+
+
+
+
+
+
+
+
 # def process_queue():
 #     """Process queued data and manage uploads"""
 #     last_upload = time.time()
@@ -189,273 +476,40 @@ def csv_writer_job():
 #                     except Exception as e:
 #                         logger.error(f"❌ Upload failed: {str(e)}")
 
+
 # def uploader_metrics(data: List[Dict[str, Any]]):
 #     """Simulated upload function"""
 #     logger.info(f"⬆️ Uploading {len(data)} records")
 #     # Implement actual upload logic here
 
 
-
-##########################################################################
-def handle_client(conn, addr):
-    """
-    Manage the connection with an individual client.
-    """
-
-    node_id = None
-    client_address = f"{addr[0]}:{addr[1]}"
-    thread_name = threading.current_thread().name
-
-    logger.info("[%s] 🤝 New connection from: %s", thread_name, client_address)
-
-    try:
-        # 1. Confirm connection and wait for ID
-        conn.sendall(b"CONNECTED")
-
-        # 2. Receive NODE_ID
-        conn.settimeout(60) # Timeout para el registro inicial
-        node_id_bytes = conn.recv(1024).strip()
-
-        if not node_id_bytes:
-            logger.warning("[%s] Client %s did not send ID. Closing...", thread_name, client_address)
-            return
-
-        # Catch node ID
-        node_id = node_id_bytes.decode()
-        logger.info("[%s] NODE_ID Received: %s", thread_name, node_id)
-
-        # 3. Index the client
-        with INDEX_LOCK:
-            if node_id in CLIENTS_INDEX:
-                logger.warning("[%s] Replacing existing connection for ID: %s", thread_name, node_id)
-            CLIENTS_INDEX[node_id] = conn
-
-        conn.sendall(b"ID_RECEIVED")
-        logger.info("✅ Sending Response [ID_RECEIVED]")
-
-        # Little wait to prevent the concatenation
-        time.sleep(0.05)
-
-        client_event = threading.Event()
-        with INDEX_LOCK:
-            CLIENT_SEND_EVENTS[node_id] = client_event
-
-        # Check if there is any data pending to send in queue (DRENAJE DE BUFFER)
-        try:
-            conn.settimeout(0.1) 
-            response_drain = conn.recv(1024) 
-            if response_drain:
-                logger.warning("[%s] Drained leftover data after ID_RECEIVED: %s", thread_name, response_drain.decode().strip())
-        except socket.timeout:
-            # OK, nothig was pending
-            pass
-        except Exception as e:
-            logger.error("[%s] ❌ Error draining buffer: %s", thread_name, e)
-        
-        # 4. Principal loop, data receival
-        while not STOP_EVENT.is_set():
-
-            if not client_event.wait(timeout=45):
-                continue 
-
-            client_event.clear() 
-
-            try:
-                # Client will send data after receive READY_TO_INDEX
-                conn.settimeout(45) 
-
-                # 5. Process data length (length protocol)
-                #################################################
-                
-                # 1. Read length prefix (8 bytes)
-                length_bytes = conn.recv(8)
-
-                if not length_bytes:
-                    raise ConnectionResetError("Client disconnected during transfer.")
-
-                # 2. Decode and validate length
-                length_str = length_bytes.decode()
-
-                try:
-                    data_length = int(length_str)
-                except ValueError:
-                    logger.error("[%s] ❌ Protocol error: Invalid length field: %s", thread_name, length_str)
-                    conn.sendall(b"PROTOCOL_ERROR")
-                    return
-
-                data_bytes = b''
-                bytes_received = 0
-
-                # 3. Receive the data transfer in chunks
-                while bytes_received < data_length:
-                    remaining_bytes = data_length - bytes_received
-                    # Read chunks, limited by 4096 or left bytes
-                    chunk = conn.recv(min(4096, remaining_bytes)) 
-                    if not chunk:
-                        raise ConnectionResetError("❌ Connection lost during data transfer.")
-                    data_bytes += chunk
-                    bytes_received += len(chunk)
-                #################################################
-
-                # 6. Process and save data (JSON)
-                payload = data_bytes.decode()
-
-                # 7. Logic of: NO_DATA or JSON
-                if payload == "NO_DATA":
-                    logger.info("[%s] Client %s reported NO_DATA.", thread_name, node_id)
-                else:
-                    try:
-                        data_list = json.loads(payload)
-                        logger.info("[%s] Received %d chunks of data from %s. Enqueuing for CSV writer.", thread_name, len(data_list), node_id)
-
-                        # Save data with Thread
-                        CSV_WRITE_QUEUE.put((data_list, node_id))
-
-                    except json.JSONDecodeError:
-                        logger.error(f"[{thread_name}] ❌ Error decoding JSON received from {node_id}.", )
-                        conn.sendall(b"JSON_ERROR")
-                        continue
-
-                # 8. Send ACK to client
-                conn.sendall(b"DATA_RECEIVED")
-
-            except socket.timeout:
-                logger.warning(f"[{thread_name}] Client {node_id} doesn't send data on time (Timeout).")
-                continue
-
-            except Exception as e:
-                logger.error(f"[{thread_name}] ❌ Error en la comunicación con {node_id}: {e}")
-                break
-
-    except Exception as e:
-        logger.error(f"[{thread_name}] ❌ Error during client handling: {e}")
-
-    finally:
-        # Cleanup: Delete the client from index
-        if node_id:
-            with INDEX_LOCK:
-
-                if node_id in CLIENTS_INDEX:
-                    del CLIENTS_INDEX[node_id]
-                    logger.info("[%s] Cliente %s desindexado y conexión cerrada.", thread_name, node_id)
-
-                if node_id in CLIENT_SEND_EVENTS:
-                    del CLIENT_SEND_EVENTS[node_id]
-
-        if conn:
-            conn.close()
-##########################################################################
+# def minute_timer():
+#     """Global timer that synchronizes all nodes to minute boundaries"""
+#     while True:
+#         now = datetime.now()
+#         sleep_time = 60 - now.second
+#         time.sleep(sleep_time)
+#         node_manager.notify_minute_elapsed()
+#         logger.debug("⏰ Global minute synchronization")
 
 
 
-def scheduler_job():
-    """
-    Thread to send the sync signal to the clients each minte.
-    """
-
-    # Initial synchronization of the system clock (similar to client)
-    now = datetime.datetime.now()
-    seconds_to_wait = 60 - now.second
-    logger.info("⏰ Scheduler waiting %s s for initial sync.", seconds_to_wait )
-    time.sleep(seconds_to_wait)
-
-    while not STOP_EVENT.is_set():
-        now_minute = datetime.datetime.now().strftime("%H:%M:%S")
-        logger.info(f"[{now_minute}] 🔔 Sending READY_TO_INDEX signal to {len(CLIENTS_INDEX)} clients...")
-
-        # Iterate a copy to prevent thread modify the list
-        with INDEX_LOCK:
-            clients_to_check = list(CLIENTS_INDEX.items())
-
-        # Sending the READY_TO_INDEX signal
-        for node_id, conn in clients_to_check:
-            try:
-                if node_id in CLIENT_SEND_EVENTS:
-                    CLIENT_SEND_EVENTS[node_id].set() 
-
-                conn.sendall(b"READY_TO_INDEX")
-            except Exception as e:
-                # If fails, client must be disconnected
-                # The thread handle_client will be cleaned
-                logger.warning("❌ Error sending on Node: %s:\n %s \n Marked to clean...", node_id, e)
-                try:
-                    conn.close() 
-                except:
-                    pass
-
-        # Wait 1 minute for the next cicle
-        time.sleep(60)
 
 
 
-def main_server():
-    """
-    Función principal que inicia el servidor y los hilos.
-    """
 
-    # Set up the CSV files
-    setup_csv()
 
-    # 1. Start the thread for Scheduler
-    scheduler = threading.Thread(target=scheduler_job, name="Scheduler")
-    scheduler.start()
 
-    # Start data saver thread
-    csv_writer = threading.Thread(target=csv_writer_job, name="CSV-Writer")
-    csv_writer.start()
 
-    # 2. Starting the socket servidor
-    try:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) # Allow to reuse the Port
-            s.bind((HOST, PORT))
-            s.listen()
-            logger.info(f"📡 Server listening to {HOST}:{PORT}")
 
-            # 3. Loop to accept connections
-            s.settimeout(1) # Timeout to check STOP_EVENT
-            while not STOP_EVENT.is_set():
-                try:
-                    conn, addr = s.accept()
-                    # Start a new thread to handle the client
-                    client_thread = threading.Thread(target=handle_client, args=(conn, addr), name=f"Client-{addr[1]}")
-                    client_thread.start()
 
-                except socket.timeout:
-                    # Timeout to check if STOP_EVENT is being activated
-                    continue
-                except Exception as e:
-                    logger.error(f"❌ Error accepting the connection: {e}")
-                    break
 
-    except Exception as e:
-        logger.critical(f"❌ Fatal error starting the server: {e}")
 
-    finally:
-        logger.info("🛑 Scheduler stopped, waiting to ending...")
-        STOP_EVENT.set()
-        scheduler.join()
 
-        # Close all active connection
-        with INDEX_LOCK:
-            for node_id, conn in CLIENTS_INDEX.items():
-                try:
-                    conn.close()
-                except:
-                    pass
-            CLIENTS_INDEX.clear()
 
-        logger.info("👋 Server stopped.")
-        sys.exit(0)
 
-if __name__ == "__main__":
-    try:
-        main_server()
-    except KeyboardInterrupt:
-        logger.info("👋 Stopped by user. Starting secure stop...")
-        STOP_EVENT.set()
-        # Tiny lapse to detect the stop
-        time.sleep(2)
+
+
 
 
 
@@ -796,217 +850,4 @@ if __name__ == "__main__":
 
 
 ############################################################################################################
-
-
-# def start_server():
-#     """
-#     This function is responsible for synchronizing the nodes, 
-#     receiving their information and sending it to "metrics_uploader.py" 
-#     to be uploaded to Upstream-dso and create Subtask in Mint based on 
-#     the Streamflow calculated with the functions of "utils.py".
-#     """
-
-#     try:
-#         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
-
-#             # Make the port Reusable if it turns down
-#             server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-#             server_socket.bind((HOST, PORT))
-#             server_socket.listen()
-#             print(f"🟢 Server actived on: {HOST}:{PORT}")
-#             logger.info(f"🟢 Server actived on: {HOST}:{PORT}")
-
-#             while True:
-#                 conn, addr = server_socket.accept()
-#                 with conn:
-#                     print(f"📡 Connection stablished from: {addr}")
-#                     logger.info(f"📡 Connection stablished from: {addr}")
-#                     # Send signal to the client when connection is stablished
-#                     conn.sendall(b"READY")
-
-#                     # Wait for the client to sent the data (Must be pushed in a queue)
-#                     data = conn.recv(4096)
-#                     if not data:
-#                         continue
-
-#                     try:
-#                         message = json.loads(data.decode("utf-8"))
-#                         print(f"🕓 {datetime.now()} - Received Data:")
-                        
-#                         print(json.dumps(message, indent=4))
-#                         logger.info(json.dumps(message, indent=4))
-#                         conn.sendall(b"OK")  # Confirmación final
-#                     except json.JSONDecodeError:
-#                         print("❌ Error: Received Data is not a valid JSON format.")
-#                         conn.sendall(b"ERROR")
-
-#     except KeyboardInterrupt:
-#         logger.info("📡 Metrics Receiver stopped by user.")
-#     finally:
-#         sys.exit(0)
-
-# if __name__ == "__main__":
-#     start_server()
-
-##############################################################################################3
-
-
-
-# def handle_node_connection(conn, addr):
-#     """
-#     Manage each NODE individually and send
-#     send its data to process and upload
-#     """
-
-#     node_id = None
-#     try:
-#         # Step 1: Node identification
-#         conn.sendall(b"NODE_ID_REQUEST")
-#         # conn.sendall(b"READY")
-#         node_id_response = conn.recv(1024).decode('utf-8').strip()
-        
-#         if not node_id_response:
-#             raise ValueError("Empty node ID received")
-        
-#         node_id = node_id_response
-#         with PROCESSING_LOCK:
-#             NODES[node_id] = {
-#                 'conn': conn,
-#                 'addr': addr,
-#                 'last_active': time.time(),
-#                 'status': 'connected'
-#             }
-        
-#         logger.info(f"🆔 Node {node_id} connected from {addr}")
-#         conn.sendall(b"READY")
-#         #conn.sendall(b"OK_AUTH") 
-
-#         # Step 2: Data retreival 
-#         while True:
-#             data = conn.recv(4096)
-#             if not data:
-#                 logger.warning(f"📥 Not received any data from {node_id}: {message['thread']}")
-#                 break
-
-#             current_time = time.time()
-#             try:
-#                 message = json.loads(data.decode('utf-8'))
-#                 logger.info(f"📥 Received data from {node_id}: {message['thread']}")
-
-#                 # Basic message validation
-#                 if 'thread' not in message or 'data' not in message:
-#                     raise ValueError("Invalid message format")
-
-#                 # Update current activity
-#                 with PROCESSING_LOCK:
-#                     NODES[node_id]['last_active'] = current_time
-
-#                 #################################################################
-#                 # Add to the processing queue
-#                 NODE_QUEUE.put({
-#                     'node_id': node_id,
-#                     'message': message,
-#                     'timestamp': current_time
-#                 })
-#                 #################################################################
-
-#                 # Response
-#                 conn.sendall(b"OK_QUEUED")
-
-#             except (json.JSONDecodeError, ValueError) as e:
-#                 logger.error(f"❌ Error processing data from {node_id}: {str(e)}")
-#                 conn.sendall(b"BAD_FORMAT")
-
-#     except ConnectionResetError:
-#         logger.warning(f"⚠️ Connection reset by node {node_id or addr}")
-#     except Exception as e:
-#         logger.error(f"🔴 Error with node {node_id or addr}: {str(e)}")
-#     finally:
-#         if node_id:
-#             with PROCESSING_LOCK:
-#                 if node_id in NODES:
-#                     del NODES[node_id]
-#         conn.close()
-#         logger.info(f"🚪 Node {node_id or addr} disconnected")
-
-
-# def process_node_data():
-#     """
-#     Procesa los datos de los nodos en orden de llegada
-#     """
-    
-#     while True:
-#         try:
-#             # Obtener el siguiente elemento de la cola (bloqueante)
-#             item = NODE_QUEUE.get()
-#             node_id = item['node_id']
-#             message = item['message']
-#             timestamp = item['timestamp']
-
-#             #################################################################
-#             # PROCESAMIENTO!!! ----> Send it to Upload
-#             # Simular procesamiento (aquí iría tu lógica real)
-#             logger.info(f"🔧 Processing {message['thread']} from {node_id}")
-#             logger.info(f"Data: {message['data']}")
-#             time.sleep(1)  # Simula tiempo de procesamiento
-#             #################################################################
-            
-#             # Mark as completed
-#             NODE_QUEUE.task_done()
-#             logger.info(f"✅ Processed {message['thread']} from {node_id}")
-
-#         except Exception as e:
-#             logger.error(f"❌ Error processing data: {str(e)}")
-
-# def monitor_nodes():
-#     """
-#     Manage the interactive NODES and reject the ones with timeout
-#     """
-
-#     while True:
-#         time.sleep(5)  # Check out each 5 seconds
-#         current_time = time.time()
-#         inactive_nodes = []
-
-#         with PROCESSING_LOCK:
-#             for node_id, node_info in NODES.items():
-#                 if current_time - node_info['last_active'] > 90:  # 15 seg timeout
-#                     inactive_nodes.append(node_id)
-
-#             for node_id in inactive_nodes:
-#                 logger.warning(f"⏰ Timeout for node {node_id}, disconnecting")
-#                 try:
-#                     if 'conn' in NODES[node_id]:
-#                         NODES[node_id]['conn'].sendall(b"BAD_TIMEOUT")
-#                         NODES[node_id]['conn'].close()
-#                 except:
-#                     pass
-#                 del NODES[node_id]
-
-# def start_server():
-#     """Starts the principal service"""
-#     try:
-#         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
-#             server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-#             server_socket.bind((HOST, PORT))
-#             server_socket.listen(5)  # Queue of pending connections
-#             logger.info(f"🟢 Server started on {HOST}:{PORT}")
-
-#             # Start auxiliary threads
-#             threading.Thread(target=process_node_data, daemon=True).start()
-#             threading.Thread(target=monitor_nodes, daemon=True).start()
-
-#             while True:
-#                 conn, addr = server_socket.accept()
-#                 threading.Thread(target=handle_node_connection, args=(conn, addr)).start()
-
-#     except KeyboardInterrupt:
-#         logger.info("🛑 Server stopped by user")
-#     finally:
-#         sys.exit(0)
-
-# if __name__ == "__main__":
-#     start_server()
-
-
 
