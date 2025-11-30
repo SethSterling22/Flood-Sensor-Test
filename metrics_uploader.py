@@ -10,9 +10,9 @@ load_dotenv(".env.public")  # Public env variables
 load_dotenv(".env")         # Tapis credentials
 
 # === CONFIGURATION ===
-LOG_DIR = "./Logs/rain_logs"  # absolute path for safety
+LOG_DIR = "./Logs/Water_data/" 
 
-SENSOR_FILE = os.path.join(LOG_DIR, "sensors.csv")
+SENSOR_FILE = os.path.join(LOG_DIR, "metrics_data.csv")
 USERNAME = os.getenv("userid")
 PASSWORD = os.getenv("password")
 BASE_URL = os.getenv('BASE_URL')
@@ -25,19 +25,22 @@ STATION_ID = os.getenv('STATION_ID')
 # === LOGGING ===
 PID_FILE = "./PID/rain_gauge_uploader.pid"
 
-
+# Register PID
 with open(PID_FILE, "w") as f:
     f.write(str(os.getpid()))
 
+
+# ====== LOGGING SETUP ======
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler( 'rain_gauge_upload.log'),
-        logging.StreamHandler()
+        logging.FileHandler(os.path.join(LOG_DIR, 'metrics_uploader.log'), encoding='utf-8'),
+        logging.StreamHandler(sys.stdout)
     ]
 )
 logger = logging.getLogger(__name__)
+
 
 
 def init_sensor_file():
@@ -45,8 +48,16 @@ def init_sensor_file():
         try:
             with open(SENSOR_FILE, "w", newline="") as f:
                 writer = csv.writer(f, delimiter="\t")
-                writer.writerow(["alias,variablename,postprocess,units,datatype"])
-                writer.writerow(["precipitation,precipitation,,mm,float"])
+
+                writer.writerow(["alias,variablename,postprocess,units,datatype"]) # Default fields
+
+                # Fields to upload
+                writer.writerow(["Node-ID", "Node_ID", "", "string", "string"]) 
+                writer.writerow(["Rain Gauge", "Rain_Gauge_Metrics", "", "mm", "float"])
+                writer.writerow(["Flood Sensor", "Flood_Sensor_Metrics", "", "cm", "float"])
+                writer.writerow(["Temperature and Humidity", "Temp_and_Humid_Sensor_Metrics", "", "cm", "float"])
+                # writer.writerow(["precipitation,precipitation,,mm,float"])
+
             logger.info(f"✅ Created sensor file at {SENSOR_FILE}")
         except Exception as e:
             logger.error(f"Failed to create sensor file: {e}")
