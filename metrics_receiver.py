@@ -71,7 +71,7 @@ def setup_csv(filename):
     """
     Create the CSV with the given name and add the header
     """
-        if not os.path.exists(SENSOR_FILE):
+    if not os.path.exists(SENSOR_FILE):
         try:
             with open(SENSOR_FILE, "w", newline="") as f:
                 writer = csv.writer(f, delimiter="\t")
