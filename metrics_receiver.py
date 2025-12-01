@@ -74,12 +74,12 @@ def setup_csv(filename):
     """
     try:
         if not os.path.exists(SENSOR_FILE):
-            with open(SENSOR_FILE, "w", newline="", encoding='utf-8-sig') as f:
+            with open(SENSOR_FILE, "w", newline="") as f:
                 writer = csv.writer(f, delimiter="\t")
-                writer.writerow(["alias, variablename, postprocess, units, datatype"]) # Default fields
+                writer.writerow(["alias,variablename,postprocess,units,datatype"]) # Default fields
 
                 # Fields to upload
-                writer.writerow(["Metrics", "Metrics", "", "string", "string"])
+                writer.writerow(["Metrics,Metrics,true,string,string"])
                 # writer.writerow(["Rain Gauge", "Rain_Gauge_Metrics", "", "mm", "float"])
                 # writer.writerow(["Flood Sensor", "Flood_Sensor_Metrics", "", "cm", "float"])
                 # writer.writerow(["Temperature and Humidity", "Temp_and_Humid_Sensor_Metrics", "", "cm", "float"])
@@ -95,7 +95,7 @@ def setup_csv(filename):
             with open(filename, mode='w', newline='', encoding='utf-8-sig') as file:
                 # write on the CSV the data
                 # CSV FORMAT: | NODE_ID | TIMESTAMP | SENSOR_NAME | SENSOR DATA | LATITUDE | LONGITUDE
-                csv.writer(file).writerow(['Node_ID', 'Timestamp', 'Sensor_Name', 'Metrics', "Lat_deg", "Lon_deg"])
+                csv.writer(file).writerow(['Node_ID', 'collectiontime', 'Sensor_Name', 'Metrics', "Lat_deg", "Lon_deg"])
             logger.info("💾 File data %s ready with headers.", filename)
         else:
             logger.info("💾 File data %s already exists.", filename)
@@ -131,19 +131,6 @@ def extract_and_flatten_data(node_id, timestamp, data_item):
         # Devolver las dos filas generadas
         return rows
 
-    # 1. Extraction and normalization of metrics
-    # if isinstance(raw_value, (list, dict)):
-    #     try:
-    #         raw_value = json.dumps(raw_value)
-    #     except TypeError as e:
-    #         # Fallback if the object is not serializable
-    #         logger.warning("⚠️ No serializable object to JSON, using str() as fallback: %s", e)
-    #         raw_value = str(raw_value)
-
-    # # 2. Build thw row if sensor and value != None
-    # if sensor_name and raw_value is not None:
-    #     rows.append([ node_id,  timestamp,  sensor_name,  raw_value, lat_deg,  lon_deg])
-
     # return rows
     metric_value = raw_value
 
@@ -161,7 +148,6 @@ def extract_and_flatten_data(node_id, timestamp, data_item):
                 metric_value = json.dumps(raw_value)
             except TypeError:
                 metric_value = str(raw_value)
-
 
     # 2. Build thw row if sensor and value != None
     if isinstance(metric_value, (list, dict)):
@@ -188,7 +174,7 @@ def csv_writer_job():
 
     last_upload = time.time()
     # upload_interval = 3600 # 1 hour
-    upload_interval = 600 # 1 hour
+    upload_interval = 600 # 10 minutes
     global CSV_FILE
 
     logger.info("📝 CSV Writer thread started.")
@@ -218,11 +204,9 @@ def csv_writer_job():
 
                     with open(current_csv_file, mode='a', newline='', encoding='utf-8-sig') as file:
                         csv.writer(file).writerows(all_rows)
-
                     logger.info("💾 Saved %d ítems in final format from %s to %s", len(all_rows), os.path.basename(current_csv_file), node_id)
                 else:
                     logger.warning("⚠️ Valid rows were not generated to write. Data discard for %s.", node_id)
-
                 CSV_WRITE_QUEUE.task_done()
 
             except OSError as e:
@@ -237,63 +221,7 @@ def csv_writer_job():
                 logger.error("❌ General I/O Error: %s", e)
                 CSV_WRITE_QUEUE.task_done()
 
-
-
-        # try:
-        #     item = CSV_WRITE_QUEUE.get(timeout=1)
-        #     data_list, node_id = item
-
-        #     # Write sync
-        #     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        #     rows = [[node_id, now, json.dumps(x) if isinstance(x, (dict, list)) else str(x)] for x in data_list]
-
-        #     try:
-        #         # Write in file
-        #         # CSV FORMAT: | NODE_ID | TIMESTAMP | JSON SENSOR DATA |
-        #         with open(CSV_FILE, mode='a', newline='', encoding='utf-8-sig') as file:
-        #             csv.writer(file).writerows(rows)
-
-        #         logger.info("💾 Saved %d items from %s", len(data_list), node_id)
-        #         CSV_WRITE_QUEUE.task_done()
-
-        #     # UPLOAD SECTION
-        #     except queue.Empty:
-        #         # Check the upload when BUFFER is empty
-        #         if time.time() - last_upload >= upload_interval:
-        #             try:
-        #                 # Call to uploader IMPORTANT
-        #                 logger.info("Starting Uploader...")
-        #                 uploader_metrics(CSV_FILE)
-        #                 logger.info("⬆️ Upload completed successfully")
-        #                 last_upload = time.time()
-
-        #                 # Provides the filename
-        #                 new_filename = get_next_hourly_filename()
-
-        #                 # Create new file and upload the global
-        #                 if setup_csv(new_filename):
-        #                     # Write will point to new file
-        #                     CSV_FILE = new_filename
-        #                     logger.info("🔄 File rotated. New data will be written to: %s", CSV_FILE)
-        #                 else:
-        #                     logger.error("❌ Failed to create new CSV file. Keeping the old file name.")
-        #             except Exception as e:
-        #                 logger.error("❌ Upload failed: %s", str(e))
-        #         continue # GO back to the loop
-
-        #     except OSError as e:
-        #         # Catch specific OS-level errors (like Errno 9)
-        #         logger.error("❌ OS/File Error [%d]: %s. Data RE-QUEUED for safety.", e.errno, e.strerror)
-        #         # Put the item back in the queue to attempt writing later
-        #         CSV_WRITE_QUEUE.put(item)
-        #         if not STOP_EVENT.wait(10):
-        #             continue
-
-        #     except Exception as e:
-        #         logger.error("❌ General I/O Error: %s", e)
-        #         # Failure, discard item after logging
-        #         CSV_WRITE_QUEUE.task_done()
-
+        # UPLOAD SECTION
         except queue.Empty:
             # 2. Rotate and upload
             if time.time() - last_upload >= upload_interval:

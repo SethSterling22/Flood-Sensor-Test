@@ -21,10 +21,10 @@ This application monitors a physical flood sensor connected to a Raspberry Pi an
 ### Hardware Requirements
 
 - Raspberry Pi (any model with GPIO support)
-- Flood Sensor connected to GPIO pin 13
+- Flood Sensor connected to GPIO pin 13 (3v)
 - Rainfall Sensor connected to GPIO pin 6
+- Temperature and Humidity connected to GPIO 4 (3v)
 - Internet connection for API access
-- SE DEBEN AGREGAR LOS DIFERENTES SENSORES !!!
 
 ### Software Requirements
 
@@ -135,24 +135,28 @@ sudo ./run.sh stop
 sudo ./run.sh restart
 ```
 
-## How It Works
+## How It Works !!! Must be reviewed
 
 1. **Sensor Monitoring**: Continuously monitors GPIO pin 13 for flood sensor input
+
 2. **Threshold Check**: When sensor detects water (LOW signal):
    - Fetches current streamflow data from USGS
    - Compares with previous readings
    - Converts flow rate from ft³/s to m³/s
+
 3. **Model Execution**: If streamflow exceeds threshold:
    - Authenticates with Tapis API
    - Configures flood model parameters
    - Submits model execution request to MINT
 4. **Logging**: All activities are logged with timestamps
+
 5. **Wait Cycle**: Sleeps for 6 minutes (360 seconds) between checks
+
 
 ## Logging
 
-The application creates detailed logs in:
-- **File**: `flood_sensor.log` (in project directory)
+The application creates detailed in:
+- **File**: `Logs/` (in project directory)
 - **Console**: Real-time output during execution
 
 Log levels include:
@@ -162,38 +166,53 @@ Log levels include:
 
 ## File Structure
 
-REVISAR LA NUEVA ESTRUCTURA !!!
-
 ```
 Flood-Sensor/
-├── Env/                            # Environment configuration files
+|
+├── Daemon_Services/                # Systemd service configurations
+│   ├── flood-sensor.service        # Flood monitoring daemon service
+│   └── rain_gauge_uploader.service # Data telemetry service 
+|
+├── Env/                            # Environment configuration files 
+│   ├── .env                        # Private environment variables (Must be created)
 │   ├── .env.config                 # Private environment variables (API keys, secrets)
-│   ├── .env.public                 # Public/shared environment variables
-|   └── .env.                       # Private environment variables (Must be created)
+|   └── .env.public                 # Public/shared environment variables
 |
 ├── Logs/                           # System and application log files (Created automaticaly)
+|   └── Water_data/                 # Directory where all the metrics are storaged
+|
 ├── PID/                            # Process ID files for daemon management (Created/deleted automaticaly)
+|
 ├── Sensor_Tests/                   # Hardware validation test suites
 │   ├── flood_sensor_test.py        # Flood sensor calibration/validation tests
 │   └── rainfall_sensor_test.py     # Rain gauge tests
+|                                                                    
+├── Sensors/                        # Sensors folder
+│   ├── flood_sensor.py             # Core flood detection logic used as thread
+│   ├── rain_gauge.py               # Precipitation measurement module used as thread
+|   └── temp_and_humid_sensor.py    # Temperature and Humidity sensor, used as thread
 |
-├── Services/                       # Systemd service configurations
-│   ├── flood-sensor.service        # Flood monitoring daemon service
-│   └── rain_gauge_uploader.service # Data telemetry service 
-|                                                                    CREO QUE DEBO HACER CONSIDERACIONES EN SERVICES!!!
 ├── Setup/                          # Dependency management
-│   ├── constraints.txt             # Version-pinned package constraints
+│   ├── campaign_manager.py         # Monitoring campaign scheduler
 │   ├── requirements.txt            # Python package requirements
-|   └── campaign_manager.py         # Monitoring campaign scheduler
+|   └── constraints.txt             # Version-pinned package constraints
+|
+├── Tests/                          # Testing folder
+|   ├── Test_Nodes/
+|   |   ├── Logs/
+|   |   ├── dummy_manager.py        # Used for test, replica of "main.py"
+|   |   └── dummy_node.py           # Generates dummy data for testing
+│   ├── flood_sensor_test.py        # Used to test the flood sensor independently
+│   └── rainfall_sensor_test.py     # Used to test the rainfall sensor independently
+|
+├── venv/                           # Must be created
 |
 ├── .gitattributes                  # Git file handling rules
 ├── .gitignore                      # Git excluded files/patterns
-├── flood_sensor.py                 # Core flood detection logic
 ├── LICENSE                         # Project license (MIT)
 ├── main.py                         # Primary application logic
 ├── metrics_receiver.py             # Listener metrics server
 ├── metrics_uploader.py             # Data export to Upstream-dso
-├── rain_gauge.py                   # Precipitation measurement module
 ├── README.md                       # Project documentation
 ├── run.sh                          # bash execution script
 └── utils.py                        # Shared utility functions
@@ -211,39 +230,33 @@ Flood-Sensor/
 - Flood model execution submission
 - Integration with Tapis authentication
 
-
 ### Log Analysis
 
 Check the log file for detailed error information:
 ```bash
-tail -f flood_sensor.log
+tail -f ./Logs/metrics_receiver.log
 ```
 
 ## Development
 
 ### Adding New Features
 
-1. Modify sensor pin in `main.py`:
+1. Modify sensor pin in `./Env/.env.config`:
    ```python
-   sensor_pin = 13  # Change to your desired pin
-   ```
-
-2. Adjust check interval:
-   ```python
-   time.sleep(360)  # Change sleep duration (seconds)
+   # Change to your desired pin
+   FLOOD_SENSOR = 13
+   RAINFALL_SENSOR = 6
+   TEMP_&_HUMID_SENSOR = 4
    ```
 
 3. Modify streamflow threshold logic in the main loop
 
 ### Testing
 
-Test the sensor without hardware:
-```python
-# Comment out GPIO lines for testing:
+Test the sensor without hardware (RaspberryPi and Sensors):
+- You can use the `metrics_receiver.py` as normal
+- For Nodes, `Tests/Test_Nodes/dummy_manager.py` must be used
 
-   # GPIO.setmode(GPIO.BCM)
-   # GPIO.setup(sensor_pin, GPIO.IN)
-```
 
 ## Contributing
 
@@ -269,5 +282,6 @@ For issues and questions:
 ## Extra Information: 
 
 - [Liquid Sensor](https://www.mouser.com/datasheet/2/737/3397_datasheet_actual-1228633.pdf?srsltid=AfmBOoomA1sX4nExoP1tFe5z0GlJ6zAp_ayNQhGoQWl9QLpZI74N1I5b "Liquid Sensor Link")
-- [Rainfall Sensor:](https://wiki.dfrobot.com/SKU_SEN0575_Gravity_Rainfall_Sensor "Rainfall Sensor Link")
+- [Rainfall Sensor](https://wiki.dfrobot.com/SKU_SEN0575_Gravity_Rainfall_Sensor "Rainfall Sensor Link")
+- [Temperature and humidity Sensor](https://docs.sunfounder.com/projects/umsk/en/latest/05_raspberry_pi/pi_lesson19_dht11.html "Temperature and humidity Sensor Sensor Link")
 
