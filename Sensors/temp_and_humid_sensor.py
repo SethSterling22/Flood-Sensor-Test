@@ -47,14 +47,14 @@ def get_temp_and_humid_data():
                 #time_string = f"{now.hour}:{now.minute}:{now.second}"
 
                 # Celcius string convertion
-                temperature = f"{temperature_c:.1f}°C"
+                temperature = f"{temperature_c:.1f}ºC"
 
                 # Fahrenheit convertion (uncomment the next lines to convert "temperature" to Fahrenheit)
                 # temperature_f_calc = (temperature_c * 9/5) + 32
-                # temperature = f"{temperature_f_calc:.1f}°F"
+                # temperature = f"{temperature_f_calc:.1f}-F"
 
                 #logger.info("Time: %s | Temperature: %s | Humedity: %.1f %%", time_string, temperature, humidity)
-                return temperature, humidity
+                return temperature_c, humidity
 
                 # If the lecture was successful, wait 5 seconds for the next one
                 time.sleep(5)

@@ -32,15 +32,24 @@ from Sensors.temp_and_humid_sensor import get_temp_and_humid_data as temp_humid_
 
 
 # ====== ENVIRONMENT VARIABLES ======
-load_dotenv("../../Env/.env.config")
 LOG_DIR = "./Logs/"
 os.makedirs(LOG_DIR, exist_ok=True)
+load_dotenv("./Env/.env.config")
 
 
 # ====== CONNETION SETTINGS ======
 RECEIVER_HOST = "127.0.0.1" if len(sys.argv) > 1 else os.getenv('RECEIVER_HOST')
 RECEIVER_PORT = int(os.getenv("RECEIVER_PORT", "4040"))
 NODE_ID = f"NODE_{os.getenv('NODE_PREFIX', 'default')}" # Must start with "NODE_"
+
+
+# ====== GLOBAL VARIABLES ======
+CLIENT_READY = False
+SENSOR_DATA_BUFFER = [] 
+BUFFER_LOCK = threading.Lock()
+STOP_EVENT = threading.Event()
+LATITUDE = os.getenv('GPS_LAT')
+LONGITUDE = os.getenv('GPS_LON')
 
 
 # ====== LOGGING SETUP ======
@@ -53,17 +62,6 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
-
-
-# ====== GLOBAL VARIABLES ======
-BUFFER_LOCK = threading.Lock()
-SENSOR_DATA_BUFFER = [] 
-CLIENT_READY = False
-STOP_EVENT = threading.Event()
-MIN_SEND_INTERVAL = 30
-LAST_SENT_TIME = 0
-LATITUDE = os.getenv('GPS_LAT')
-LONGITUDE = os.getenv('GPS_LON')
 
 
 

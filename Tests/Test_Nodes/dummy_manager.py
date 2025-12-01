@@ -54,6 +54,8 @@ CLIENT_READY = False
 STOP_EVENT = threading.Event()
 MIN_SEND_INTERVAL = 30
 LAST_SENT_TIME = 0
+LATITUDE = os.getenv('GPS_LAT')
+LONGITUDE = os.getenv('GPS_LON')
 
 # Just for DEBUGGING
 counter = 0
@@ -92,7 +94,9 @@ def listener_job(sensor_name, func):
                         'sensor': sensor_name,
                         'timestamp': time_string,
                         'value': data,
-                        'Counter': current_count
+                        'Counter': current_count,
+                        'Lat_deg': LATITUDE,
+                        'Lon_deg': LONGITUDE
                     })
                     logger.debug("Buffered %s data: %.2f", sensor_name, data)
 
