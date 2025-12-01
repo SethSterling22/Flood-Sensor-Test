@@ -401,6 +401,7 @@ FodyWeavers.xsd
 Env/.env
 !Env/.env.public
 !PID/
+*.pid
 !Logs
 
 # Virtual Environments

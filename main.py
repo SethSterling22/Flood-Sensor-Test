@@ -62,6 +62,8 @@ CLIENT_READY = False
 STOP_EVENT = threading.Event()
 MIN_SEND_INTERVAL = 30
 LAST_SENT_TIME = 0
+LATITUDE = os.getenv('GPS_LAT')
+LONGITUDE = os.getenv('GPS_LON')
 
 
 
@@ -89,9 +91,11 @@ def listener_job(sensor_name, func):
                     now = datetime.datetime.now()
                     time_string = f"{now.hour}:{now.minute}:{now.second}"
                     SENSOR_DATA_BUFFER.append({
-                        'sensor': sensor_name,
-                        'timestamp': time_string,
-                        'value': data,
+                        'Sensor': sensor_name,
+                        'Timestamp': time_string,
+                        'Value': data,
+                        'Lat_deg': LATITUDE,
+                        'Lon_deg': LONGITUDE
                     })
                     logger.debug("Buffered %s data: %.2f", sensor_name, data)
 
@@ -226,6 +230,14 @@ def client():
                                 # 5. WAIT SERVER CONFIRMATION (ACK)
                                 ack_bytes = s.recv(13)
                                 ack = ack_bytes.decode('utf-8').strip()
+
+                                if not ack_bytes:
+                                    logger.error("🚫 Server closed connection unexpectedly after data submission.")
+                                    break 
+
+                                if not ack:
+                                    logger.error("❌ Server ACK error receiving data: ACK received was empty or corrupted.")
+                                    break
 
                                 # ACK processing logic
                                 if ack.startswith("DATA_RECEIVED"):

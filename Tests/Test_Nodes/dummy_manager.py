@@ -143,7 +143,7 @@ def client():
                 s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
                 s.connect((RECEIVER_HOST, RECEIVER_PORT))
 
-                s.settimeout(35) 
+                s.settimeout(45) 
                 # Wait until server connects and send the CONNECTED message
                 response = s.recv(9).decode().strip()
                 logger.info("📡 SERVER response on Connection: %s", response)
@@ -230,12 +230,21 @@ def client():
                             try: 
                                 # 4. SEND LENGTH & PAYLOAD (Short timeout to write: 15s)
                                 full_payload = payload_length_bytes + payload_bytes
-                                s.settimeout(45) 
+                                s.settimeout(35) 
                                 s.sendall(full_payload) 
 
                                 # 5. WAIT SERVER CONFIRMATION (ACK)
+                                s.settimeout(50) 
                                 ack_bytes = s.recv(13)
                                 ack = ack_bytes.decode('utf-8').strip()
+
+                                if not ack_bytes:
+                                    logger.error("🚫 Server closed connection unexpectedly after data submission.")
+                                    break 
+
+                                if not ack:
+                                    logger.error("❌ Server ACK error receiving data: ACK received was empty or corrupted.")
+                                    break
 
                                 # ACK processing logic
                                 if ack.startswith("DATA_RECEIVED"):
@@ -263,7 +272,7 @@ def client():
 
                             except socket.timeout:
                                 # If server doesn't respond the ACK on time
-                                logger.error("❌ Timeout waiting for server ACK (45s). Disconnecting to retry.")
+                                logger.error("❌ Timeout waiting for server ACK (50s). Disconnecting to retry.")
                                 break
 
                             except socket.error as se: 

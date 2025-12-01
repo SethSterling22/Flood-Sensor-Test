@@ -17,6 +17,8 @@ import logging
 import datetime
 import threading
 from dotenv import load_dotenv
+from utils import get_next_hourly_filename
+from metrics_uploader import run_uploader
 
 
 
@@ -35,6 +37,7 @@ INDEX_LOCK = threading.Lock() # For the clients to start index
 CSV_WRITE_QUEUE = queue.Queue() # Thread for the CSV writing while handling other data
 CLIENT_SEND_READY_FLAGS = {} 
 CLIENT_FLAG_LOCK = threading.Lock()
+
 
 
 # ====== SAVE FILES PATH ======
@@ -68,11 +71,28 @@ def setup_csv(filename):
     """
     Create the CSV with the given name and add the header
     """
+        if not os.path.exists(SENSOR_FILE):
+        try:
+            with open(SENSOR_FILE, "w", newline="") as f:
+                writer = csv.writer(f, delimiter="\t")
+                writer.writerow(["alias, variablename, postprocess, units, datatype"]) # Default fields
+
+                # Fields to upload
+                writer.writerow(["Node_ID", "Node_ID", "", "string", "string"]) 
+                writer.writerow(["Rain Gauge", "Rain_Gauge_Metrics", "", "mm", "float"])
+                writer.writerow(["Flood Sensor", "Flood_Sensor_Metrics", "", "cm", "float"])
+                writer.writerow(["Temperature and Humidity", "Temp_and_Humid_Sensor_Metrics", "", "cm", "float"])
+            logger.info(f"✅ Created sensor file at {SENSOR_FILE}")
+        except Exception as e:
+            logger.error(f"Failed to create sensor file: {e}")
+    else:
+        logger.info(f"Sensor file exists at {SENSOR_FILE}")
+
     try:
         if not os.path.exists(filename):
             with open(filename, mode='w', newline='') as file:
                 # write on the CSV the data
-                # CSV FORMAT: | NODE_ID | TIMESTAMP | JSON SENSOR DATA |
+                # CSV FORMAT: | NODE_ID | TIMESTAMP | JSON SENSOR DATA | LATITUDE | LONGITUDE
                 csv.writer(file).writerow(['Node_ID', 'Timestamp', 'Raw_Data'])
             logger.info("💾 File data %s ready with headers.", filename)
             return True
@@ -92,7 +112,8 @@ def csv_writer_job():
     """
 
     last_upload = time.time()
-    UPLOAD_INTERVAL = 3600 # 1 hour
+    # UPLOAD_INTERVAL = 3600 # 1 hour
+    UPLOAD_INTERVAL = 300 # 1 hour
     global CSV_FILE
 
     logger.info("📝 CSV Writer thread started.")
@@ -103,7 +124,7 @@ def csv_writer_job():
 
             # Write sync
             now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            rows = [[node_id, now, json.dumps(x) if isinstance(x, (dict, list)) else str(x)] for x in data_list]
+            rows = [[node_id, now, json.dumps(x) if isinstance(x, (dict, list)) else str(x)] for x in data_list, ]
 
             try:
                 # Write in file
@@ -120,7 +141,8 @@ def csv_writer_job():
                 if time.time() - last_upload >= UPLOAD_INTERVAL:
                     try:
                         # Call to uploader
-                        uploader_metrics()
+                        logger.info("Starting Uploader...")
+                        run_uploader(CSV_FILE)
                         logger.info("⬆️ Upload completed successfully")
                         last_upload = time.time()
 
@@ -135,7 +157,7 @@ def csv_writer_job():
                         else:
                             logger.error("❌ Failed to create new CSV file. Keeping the old file name.")
                     except Exception as e:
-                        logger.error(f"❌ Upload failed: {str(e)}")
+                        logger.error("❌ Upload failed: %s", str(e))
                 continue # GO back to the loop
 
             except OSError as e:
@@ -164,24 +186,6 @@ def csv_writer_job():
                 CSV_WRITE_QUEUE.task_done()
 
     logger.info("📝 CSV Writer thread terminated.")
-
-
-def get_next_hourly_filename():
-    """
-    Generates the name of file with next hour (H:00:00)
-    """
-    now = datetime.datetime.now()
-    next_hour = now + datetime.timedelta(hours=1)
-    return next_hour.strftime("data_%Y%m%d_%H0000.csv")
-
-
-
-
-def uploader_metrics(data: List[Dict[str, Any]]):
-    """Simulated upload function"""
-    logger.info(f"⬆️ Uploading {len(data)} records")
-    # Implement actual upload logic here
-
 ############################################################################################################
 
 
@@ -199,7 +203,7 @@ def handle_client(conn, addr):
 
     try:
         # 1. Confirm connection and wait for ID
-        conn.settimeout(10)
+        conn.settimeout(45)
         try:
             conn.sendall(b"CONNECTED")
         except Exception:
@@ -275,7 +279,7 @@ def handle_client(conn, addr):
                 logger.info("[%s] 🔔 Sent READY_TO_INDEX to %s at %s", thread_name, node_id, datetime.datetime.now().strftime("%H:%M:%S"))
 
                 # Server will receive data after send READY_TO_INDEX
-                conn.settimeout(75) 
+                conn.settimeout(80) 
 
                 # Process data length (length protocol)
                 length_bytes = conn.recv(8)
@@ -294,8 +298,10 @@ def handle_client(conn, addr):
                 try:
                     conn.sendall(b"DATA_RECEIVED")
                     logger.info("👍 DATA_RECEIVED sent to client %s", node_id)
-                except:
-                    pass
+                # except:
+                #     pass
+                except Exception:
+                    safe_cleanup(node_id)
 
                 # Receive the data in chunks
                 data_bytes = b''
@@ -398,7 +404,7 @@ def main_server():
     """
 
     # 1. Set up the CSV files
-    setup_csv()
+    setup_csv(CSV_FILE)
 
     # Start data saver thread
     csv_writer = threading.Thread(target=csv_writer_job, name="CSV-Writer")

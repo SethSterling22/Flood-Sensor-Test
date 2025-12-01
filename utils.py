@@ -1,10 +1,13 @@
 """
-Description very descriptive
+File that contains useful functions
 """
 
-import requests
-from dotenv import load_dotenv
+
 import os
+import requests
+import datetime
+from dotenv import load_dotenv
+
 
 
 # === ENVIRONMENT  VARIABLES ===
@@ -126,3 +129,12 @@ def submit_subtask(problem_statement_id, task_id, subtask_id, model_config, auth
     except Exception as e:
         print(f"Error submitting subtask: {e}")
         return None
+
+
+def get_next_hourly_filename():
+    """
+    Generates the name of file with next hour (H:00:00)
+    """
+    now = datetime.datetime.now()
+    next_hour = now + datetime.timedelta(hours=1)
+    return next_hour.strftime("metrics_data_%Y%m%d_%H0000.csv")
