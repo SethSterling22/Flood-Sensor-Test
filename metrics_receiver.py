@@ -30,25 +30,25 @@ PORT = int(os.getenv("RECEIVER_PORT") or 4040)
 
 
 # ====== GLOBAL VARIABLES AND LOCKS ======
-STOP_EVENT = threading.Event()
-CLIENTS_INDEX = {} 
+CLIENTS_INDEX = {}
 CLIENT_SEND_EVENTS = {}
+CLIENT_SEND_READY_FLAGS = {}
 INDEX_LOCK = threading.Lock() # For the clients to start index
+STOP_EVENT = threading.Event()
 CSV_WRITE_QUEUE = queue.Queue() # Thread for the CSV writing while handling other data
-CLIENT_SEND_READY_FLAGS = {} 
 CLIENT_FLAG_LOCK = threading.Lock()
-
 
 
 # ====== SAVE FILES PATH ======
 LOG_DIR = "./Logs/"
-CSV_DIR = os.path.join(LOG_DIR,"Water_data/")
-# Create the directories if not exist
 os.makedirs(LOG_DIR, exist_ok=True)
+CSV_DIR = os.path.join(LOG_DIR,"Water_data/")
+
+# Provides the filename
 os.makedirs(CSV_DIR, exist_ok=True)
-# Provides the filename 
-initial_filename = get_next_hourly_filename() 
+initial_filename = get_next_hourly_filename()
 CSV_FILE = os.path.join(CSV_DIR, initial_filename)
+SENSOR_FILE = os.path.join(CSV_DIR, "metrics_template.csv")
 
 
 # ====== LOGGING SETUP ======
@@ -71,34 +71,34 @@ def setup_csv(filename):
     """
     Create the CSV with the given name and add the header
     """
-    if not os.path.exists(SENSOR_FILE):
-        try:
-            with open(SENSOR_FILE, "w", newline="") as f:
+    try:
+        if not os.path.exists(SENSOR_FILE):
+            with open(SENSOR_FILE, "w", newline="", encoding='utf-8-sig') as f:
                 writer = csv.writer(f, delimiter="\t")
                 writer.writerow(["alias, variablename, postprocess, units, datatype"]) # Default fields
 
                 # Fields to upload
-                writer.writerow(["Node_ID", "Node_ID", "", "string", "string"]) 
+                writer.writerow(["Node_ID", "Node_ID", "", "string", "string"])
                 writer.writerow(["Rain Gauge", "Rain_Gauge_Metrics", "", "mm", "float"])
                 writer.writerow(["Flood Sensor", "Flood_Sensor_Metrics", "", "cm", "float"])
                 writer.writerow(["Temperature and Humidity", "Temp_and_Humid_Sensor_Metrics", "", "cm", "float"])
-            logger.info(f"✅ Created sensor file at {SENSOR_FILE}")
-        except Exception as e:
-            logger.error(f"Failed to create sensor file: {e}")
-    else:
-        logger.info(f"Sensor file exists at {SENSOR_FILE}")
+            logger.info("✅ Created sensor file at %s", SENSOR_FILE)
+        else:
+            logger.info("Sensor file exists at %s", SENSOR_FILE)
+    except Exception as e:
+        logger.error("Failed to create sensor file: %s", e)
+
 
     try:
         if not os.path.exists(filename):
-            with open(filename, mode='w', newline='') as file:
+            with open(filename, mode='w', newline='', encoding='utf-8-sig') as file:
                 # write on the CSV the data
                 # CSV FORMAT: | NODE_ID | TIMESTAMP | JSON SENSOR DATA | LATITUDE | LONGITUDE
                 csv.writer(file).writerow(['Node_ID', 'Timestamp', 'Raw_Data'])
             logger.info("💾 File data %s ready with headers.", filename)
-            return True
         else:
             logger.info("💾 File data %s already exists.", filename)
-            return True
+        return True
     except Exception as e:
         logger.error("❌ ERROR setting up CSV: %s", e)
         return False
@@ -112,8 +112,8 @@ def csv_writer_job():
     """
 
     last_upload = time.time()
-    # UPLOAD_INTERVAL = 3600 # 1 hour
-    UPLOAD_INTERVAL = 300 # 1 hour
+    # upload_interval = 3600 # 1 hour
+    upload_interval = 300 # 1 hour
     global CSV_FILE
 
     logger.info("📝 CSV Writer thread started.")
@@ -124,12 +124,12 @@ def csv_writer_job():
 
             # Write sync
             now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            rows = [[node_id, now, json.dumps(x) if isinstance(x, (dict, list)) else str(x)] for x in data_list, ]
+            rows = [[node_id, now, json.dumps(x) if isinstance(x, (dict, list)) else str(x)] for x in data_list]
 
             try:
                 # Write in file
                 # CSV FORMAT: | NODE_ID | TIMESTAMP | JSON SENSOR DATA |
-                with open(CSV_FILE, mode='a', newline='') as file:
+                with open(CSV_FILE, mode='a', newline='', encoding='utf-8-sig') as file:
                     csv.writer(file).writerows(rows)
 
                 logger.info("💾 Saved %d items from %s", len(data_list), node_id)
@@ -138,7 +138,7 @@ def csv_writer_job():
             # UPLOAD SECTION
             except queue.Empty:
                 # Check the upload when BUFFER is empty
-                if time.time() - last_upload >= UPLOAD_INTERVAL:
+                if time.time() - last_upload >= upload_interval:
                     try:
                         # Call to uploader
                         logger.info("Starting Uploader...")
@@ -162,13 +162,11 @@ def csv_writer_job():
 
             except OSError as e:
                 # Catch specific OS-level errors (like Errno 9)
-                logger.error(f"❌ OS/File Error [{e.errno}]: {e.strerror}. Data RE-QUEUED for safety.")
+                logger.error("❌ OS/File Error [%d]: %s. Data RE-QUEUED for safety.", e.errno, e.strerror)
                 # Put the item back in the queue to attempt writing later
                 CSV_WRITE_QUEUE.put(item)
-                if not STOP_EVENT.wait(10): 
+                if not STOP_EVENT.wait(10):
                     continue
-                else:
-                    break
 
             except Exception as e:
                 logger.error("❌ General I/O Error: %s", e)
@@ -207,21 +205,20 @@ def handle_client(conn, addr):
         try:
             conn.sendall(b"CONNECTED")
         except Exception:
-            conn.close() 
+            conn.close()
             return
 
         # 2. Receive NODE_ID
         try:
             node_id_bytes = conn.recv(1024)
-            
 
             if not node_id_bytes:
                 logger.warning("[%s] Client %s closed connection or sent no data.", thread_name, client_address)
                 conn.close()
                 return # Clean Exit
-            
+
             node_id = node_id_bytes.strip().decode()
-            
+
             if not node_id:
                 logger.warning("[%s] Client %s sent empty NODE_ID. Closing...", thread_name, client_address)
                 conn.close()
@@ -257,13 +254,13 @@ def handle_client(conn, addr):
         while not STOP_EVENT.is_set():
 
             # Initial synchronization to the next minute boundary
-            
+
             now = datetime.datetime.now()
             sleep_time = 60 - now.second - (now.microsecond / 1_000_000.0)
-            
-            # Ensure we don't sleep 0 or negative if calculation is tight, 
+
+            # Ensure we don't sleep 0 or negative if calculation is tight,
             # but usually we want to wait for the next "top of the minute"
-            if sleep_time < 5.0: 
+            if sleep_time < 5.0:
                 sleep_time += 60
 
             logger.info("[%s] ⏳ Waiting %.2f seconds to trigger %s", thread_name, sleep_time, node_id)
@@ -279,7 +276,7 @@ def handle_client(conn, addr):
                 logger.info("[%s] 🔔 Sent READY_TO_INDEX to %s at %s", thread_name, node_id, datetime.datetime.now().strftime("%H:%M:%S"))
 
                 # Server will receive data after send READY_TO_INDEX
-                conn.settimeout(80) 
+                conn.settimeout(80)
 
                 # Process data length (length protocol)
                 length_bytes = conn.recv(8)
@@ -309,7 +306,7 @@ def handle_client(conn, addr):
 
                 while bytes_received < data_length:
                     remaining_bytes = data_length - bytes_received
-                    chunk = conn.recv(min(4096, remaining_bytes)) 
+                    chunk = conn.recv(min(4096, remaining_bytes))
                     if not chunk:
                         raise ConnectionResetError("❌ Connection lost during data transfer.")
                     data_bytes += chunk
@@ -323,7 +320,7 @@ def handle_client(conn, addr):
                     else:
                         try:
                             data_list = json.loads(payload)
-                            CSV_WRITE_QUEUE.put((data_list, node_id)) 
+                            CSV_WRITE_QUEUE.put((data_list, node_id))
                             logger.info("[%s] 📥 Received %d chunks from %s. Enqueuing.", thread_name, len(data_list), node_id)
                         except json.JSONDecodeError:
                             logger.error("[%s] ❌ JSON Error from %s. Data discarded.", thread_name, node_id)
@@ -335,8 +332,7 @@ def handle_client(conn, addr):
                 break
 
             except (ConnectionResetError, BrokenPipeError, OSError) as e:
-                logger.warning("[%s] Client failed data reception: %s. Cleaning up: \n %s", 
-                            thread_name, node_id, e)
+                logger.warning("[%s] Client failed data reception: %s. Cleaning up: \n %s", thread_name, node_id, e)
                 break
 
     except Exception as e:
@@ -349,7 +345,7 @@ def handle_client(conn, addr):
         elif conn:
             try:
                 conn.close()
-            except:
+            except Exception:
                 pass
 
 
@@ -416,7 +412,7 @@ def main_server():
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) # Allow to reuse the Port
             s.bind((HOST, PORT))
             s.listen(50)
-            logger.info(f"📡 Server listening to {HOST}:{PORT}")
+            logger.info("📡 Server listening to %s : %d", HOST, PORT)
 
             # 3. Loop to accept connections
             s.settimeout(1.0) # Timeout to check STOP_EVENT
@@ -430,11 +426,11 @@ def main_server():
                     # Timeout to check if STOP_EVENT is being activated
                     continue
                 except Exception as e:
-                    logger.error(f"❌ Error accepting the connection: {e}")
+                    logger.error("❌ Error accepting the connection: %s", e)
                     break
 
     except Exception as e:
-        logger.critical(f"❌ Fatal error starting the server: {e}")
+        logger.critical("❌ Fatal error starting the server: %s", e)
 
     finally:
         logger.info("🛑 Stopped, waiting to ending...")
@@ -446,7 +442,7 @@ def main_server():
             for node_id, conn in CLIENTS_INDEX.items():
                 try:
                     conn.close()
-                except:
+                except Exception:
                     pass
             CLIENTS_INDEX.clear()
 
@@ -463,4 +459,3 @@ if __name__ == "__main__":
         # Tiny lapse to detect the stop
         time.sleep(2)
 ############################################################################################################
-

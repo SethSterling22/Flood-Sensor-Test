@@ -23,7 +23,7 @@ load_dotenv("./Env/.env")         # Tapis credentials
 # === CONFIGURATION ===
 LOG_DIR = "./Logs/" 
 
-SENSOR_FILE = os.path.join(LOG_DIR, "metrics_template.csv")
+SENSOR_FILE = os.path.join(LOG_DIR, "Water_data/metrics_template.csv")
 USERNAME = os.getenv("userid")
 PASSWORD = os.getenv("password")
 BASE_URL = os.getenv('BASE_URL')
@@ -56,25 +56,24 @@ logger = logging.getLogger(__name__)
 
 
 def init_sensor_file(sensor_file):
-    if not os.path.exists(sensor_file):
-        try:
-            with open(sensor_file, "w", newline="") as f:
+    try:
+        if not os.path.exists(sensor_file):
+            with open(sensor_file, "w", newline="", encoding='utf-8-sig') as f:
                 writer = csv.writer(f, delimiter="\t")
 
                 writer.writerow(["alias, variablename, postprocess, units, datatype"]) # Default fields
 
                 # Fields to upload
-                writer.writerow(["Node-ID", "Node_ID", "", "string", "string"]) 
+                writer.writerow(["Node_ID", "Node_ID", "", "string", "string"]) 
                 writer.writerow(["Rain Gauge", "Rain_Gauge_Metrics", "", "mm", "float"])
                 writer.writerow(["Flood Sensor", "Flood_Sensor_Metrics", "", "cm", "float"])
                 writer.writerow(["Temperature and Humidity", "Temp_and_Humid_Sensor_Metrics", "", "cm", "float"])
                 # writer.writerow(["precipitation,precipitation,,mm,float"])
-
-            logger.info(f"✅ Created sensor file at %s", sensor_file)
-        except Exception as e:
-            logger.error(f"Failed to create sensor file: {e}")
-    else:
-        logger.info(f"Sensor file exists at {sensor_file}")
+            logger.info(f"✅ Created sensor file at {sensor_file}")
+        else:
+            logger.info(f"Sensor file exists at {sensor_file}")
+    except Exception as e:
+        logger.error(f"Failed to create sensor file: {e}")
 
 
 
@@ -100,7 +99,7 @@ def submit_file_to_upstream(file_path):
 
     # 1. Read and transform data
     try:
-        with open(file_path, mode='r', newline='') as infile:
+        with open(file_path, mode='r', newline='', encoding='utf-8-sig') as infile:
             reader = csv.reader(infile)
             try:
                 next(reader) # jump header
@@ -160,7 +159,7 @@ def submit_file_to_upstream(file_path):
         header_row = ["Node_ID", "Timestamp", f"{sensor_name.replace(' ', '_')}_Metrics"]
 
         try:
-            with open(temp_filename, mode='w', newline='') as outfile:
+            with open(temp_filename, mode='w', newline='', encoding='utf-8-sig') as outfile:
                 writer = csv.writer(outfile)
                 writer.writerow(header_row)
                 writer.writerows(data)
