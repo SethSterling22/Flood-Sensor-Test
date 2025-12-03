@@ -201,10 +201,6 @@ def extract_and_flatten_data(node_id, timestamp, data_item):
         return []
 
 
-    elif sensor_name == "Temperature and Humidity" and isinstance(raw_value, (list, tuple)) and len(raw_value) >= 2:
-        temp_value = raw_value[0]
-        humidity_value = raw_value[1]
-
     # 3. Filter by Sensor Name and assign the value to a variable
     if sensor_name == "Rain Gauge":
         precipitation = raw_value
