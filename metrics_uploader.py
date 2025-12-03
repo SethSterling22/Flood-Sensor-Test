@@ -10,6 +10,8 @@ import sys
 import csv
 import json
 import logging
+import tempfile
+import pandas as pd
 from datetime import datetime
 from dotenv import load_dotenv
 from upstream.client import UpstreamClient
@@ -33,7 +35,8 @@ CKAN_URL = os.getenv('CKAN_URL')
 CKAN_ORG = os.getenv('CKAN_ORG')
 STATION_ID = int(os.getenv('STATION_ID'))
 CAMPAIGN_ID = int(os.getenv('CAMPAIGN_ID'))
-SENSOR_FILE = os.path.join(LOG_DIR, "Water_data/metrics_template.csv")
+CSV_DIR = os.path.join(LOG_DIR,"Water_data/")
+SENSOR_FILE = os.path.join(CSV_DIR, "metrics_template.csv")
 
 
 # === LOGGING ===
@@ -57,26 +60,73 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-
-def init_sensor_file(sensor_file):
+def init_sensor_file():
     try:
-        if not os.path.exists(sensor_file):
-            with open(sensor_file, "w", newline="") as file:
+        if not os.path.exists(SENSOR_FILE):
+            with open(SENSOR_FILE, "w", newline="") as file:
+                writer = csv.writer(file, delimiter="\t")
                 writer.writerow(["alias,variablename,postprocess,units,datatype"]) # Default fields
 
                 # Fields to upload
-                writer.writerow(["Metrics,Metrics,true,string,string"])
-                # writer.writerow(["precipitation,precipitation,,mm,float"])
-            logger.info(f"✅ Created sensor file at {sensor_file}")
+                # writer.writerow(["Metrics,Metrics,true,string,float"])
+                writer.writerow(["Precipitation,Precipitation,true,mm,float"])
+                writer.writerow(["Degrees,Degrees,true,Celsius,float"])
+                writer.writerow(["Flooding,Flooding,true,boolean,integer"])
+
+            logger.info(f"✅ Created sensor file at {SENSOR_FILE}")
         else:
-            logger.info(f"Sensor file exists at {sensor_file}")
+            logger.info(f"Sensor file exists at {SENSOR_FILE}")
+        return True
     except Exception as e:
         logger.error(f"Failed to create sensor file: {e}")
+        return False
+
+
+# def submit_file_to_upstream(file_path):
+#     logger.info(f"🚀 Uploading {os.path.basename(file_path)} to Upstream...")
+#     try:
+#         client = UpstreamClient(
+#             username=USERNAME,
+#             password=PASSWORD,
+#             base_url=BASE_URL,
+#             ckan_url=CKAN_URL,
+#             ckan_organization=CKAN_ORG
+#         )
+#     except Exception as e:
+#         logger.error(f"❌ Upload failed for Upstream Client {e}")
+#         return False
+        
+#     try:
+#         client.upload_csv_data(
+#             measurements_file=file_path,
+#             sensors_file=SENSOR_FILE,
+#             campaign_id=CAMPAIGN_ID,
+#             station_id=STATION_ID # mUST BE CHANGED, EACH NODE MUST GIVE THE STATION ID
+#         )
+#         logger.info(f"✅ Successfully uploaded {file_path}")
+#         return True
+#     except Exception as e:
+#         logger.error(f"❌ Upload failed for {file_path}: {e}")
+#         return False
+
+
 
 
 def submit_file_to_upstream(file_path):
-    logger.info(f"🚀 Uploading {os.path.basename(file_path)} to Upstream...")
+    logger.info(f"🚀 Processing {os.path.basename(file_path)} for multiple stations...")
+
     try:
+        # Read the CSV file
+        df = pd.read_csv(file_path)
+
+        if 'Station_Id' not in df.columns:
+            logger.error(f"❌ Column 'Station_Id' not found in {file_path}")
+            return False
+
+        # Group by Station_Id
+        grouped = df.groupby('Station_Id')
+
+        # Crear cliente una sola vez
         client = UpstreamClient(
             username=USERNAME,
             password=PASSWORD,
@@ -84,21 +134,40 @@ def submit_file_to_upstream(file_path):
             ckan_url=CKAN_URL,
             ckan_organization=CKAN_ORG
         )
+
+        success_count = 0
+        total_stations = len(grouped)
+
+        for station_id, group in grouped:
+            try:
+                # Create a temp file for each station and iterate it
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as temp_file:
+                    group.to_csv(temp_file.name, index=False)
+
+                    logger.info(f"📤 Uploading {len(group)} records for station {station_id}...")
+
+                    client.upload_csv_data(
+                        measurements_file=temp_file.name,
+                        sensors_file=SENSOR_FILE,
+                        campaign_id=CAMPAIGN_ID,
+                        station_id=station_id
+                    )
+
+                    success_count += 1
+                    logger.info(f"✅ Successfully uploaded data for station {station_id}")
+
+            except Exception as e:
+                logger.error(f"❌ Failed to upload data for station {station_id}: {e}")
+            finally:
+                # Delete a temp file if exists
+                if os.path.exists(temp_file.name):
+                    os.unlink(temp_file.name)
+
+        logger.info(f"📊 Summary: Successfully uploaded {success_count} of {total_stations} stations")
+        return success_count == total_stations
+
     except Exception as e:
-        logger.error(f"❌ Upload failed for Upstream Client {e}")
-        return False
-        
-    try:
-        client.upload_csv_data(
-            measurements_file=file_path,
-            sensors_file=SENSOR_FILE,
-            campaign_id=CAMPAIGN_ID,
-            station_id=STATION_ID
-        )
-        logger.info(f"✅ Successfully uploaded {file_path}")
-        return True
-    except Exception as e:
-        logger.error(f"❌ Upload failed for {file_path}: {e}")
+        logger.error(f"❌ Critical error processing {file_path}: {e}")
         return False
 
 
@@ -108,28 +177,33 @@ def run_uploader(file_to_upload):
     Process, upload and delete the RAW file if the upload is sucessful
     """
     logger.info("📡 Starting Metrics uploader...")
-    init_sensor_file(SENSOR_FILE)
+    created_template = init_sensor_file()
+    if created_template:
 
-    # if not is_time_to_upload():
-    #     logger.info("⏳ Not time to upload yet. Run this script at 5 minutes past the hour.")
-    #     return
+        # if not is_time_to_upload():
+        #     logger.info("⏳ Not time to upload yet. Run this script at 5 minutes past the hour.")
+        #     return
 
-    # file_to_upload = get_previous_hour_file()
-    if not os.path.exists(file_to_upload):
-        logger.warning("⚠️ No data file to upload for previous hour: %s", file_to_upload)
-        return
+        # file_to_upload = get_previous_hour_file()
+        if not os.path.exists(file_to_upload):
+            logger.warning("⚠️ No data file to upload for previous hour: %s", file_to_upload)
+            return
 
-    success = submit_file_to_upstream(file_to_upload)
-    if success:
-        try:
-            os.remove(file_to_upload)
-            logger.info("🧹 Removed uploaded file %s", os.path.basename(file_to_upload))
-        except Exception as e:
-            logger.error("❌ Failed to remove uploaded file: %s", e)
+        success = submit_file_to_upstream(file_to_upload)
+        if success:
+            try:
+                # os.remove(file_to_upload) # File DELETE
+                logger.info("🧹 Removed uploaded file %s", os.path.basename(file_to_upload))
+            except Exception as e:
+                logger.error("❌ Failed to remove uploaded file: %s", e)
+        else:
+            logger.warning("❌ Upload failed for %s. RAW file preserved.", os.path.basename(file_to_upload))
+
+        return success
     else:
-        logger.warning("❌ Upload failed for fallida para %s. RAW file preserved.", os.path.basename(file_to_upload))
+        logger.warning("❌ Error creating template file")
+        sys.exit(0)
 
-    return success
 
 
 if __name__ == "__main__":

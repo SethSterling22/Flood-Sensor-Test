@@ -24,6 +24,7 @@ from dummy_node import get_data as dummy_data
 
 # ====== ENVIRONMENT VARIABLES ======
 load_dotenv("../../Env/.env.config")
+load_dotenv("../../Env/.env.public")
 LOG_DIR = "./Logs/"
 os.makedirs(LOG_DIR, exist_ok=True)
 
@@ -56,6 +57,7 @@ MIN_SEND_INTERVAL = 30
 LAST_SENT_TIME = 0
 LATITUDE = os.getenv('GPS_LAT')
 LONGITUDE = os.getenv('GPS_LON')
+STATION_ID = int(os.getenv('STATION_ID'))
 
 # Just for DEBUGGING
 counter = 0
@@ -91,10 +93,10 @@ def listener_job(sensor_name, func):
                     now = datetime.datetime.now()
                     time_string = f"{now.hour}:{now.minute}:{now.second}"
                     SENSOR_DATA_BUFFER.append({
-                        'sensor': sensor_name,
-                        'timestamp': time_string,
-                        'value': data,
-                        'Counter': current_count,
+                        'Sensor': sensor_name,
+                        'Timestamp': time_string,
+                        'Value': data,
+                        'Station_Id': STATION_ID,
                         'Lat_deg': LATITUDE,
                         'Lon_deg': LONGITUDE
                     })
@@ -132,7 +134,7 @@ def client():
     """
 
     MAX_RETRY_COUNT = 4
-    SHORT_WAIT_TIME = 25
+    SHORT_WAIT_TIME = 20
     LONG_WAIT_TIME = 180  # 3 minutes
     retry_count = 0
 

@@ -35,6 +35,7 @@ from Sensors.temp_and_humid_sensor import get_temp_and_humid_data as temp_humid_
 LOG_DIR = "./Logs/"
 os.makedirs(LOG_DIR, exist_ok=True)
 load_dotenv("./Env/.env.config")
+load_dotenv("./Env/.env.public")
 
 
 # ====== CONNETION SETTINGS ======
@@ -50,6 +51,7 @@ BUFFER_LOCK = threading.Lock()
 STOP_EVENT = threading.Event()
 LATITUDE = os.getenv('GPS_LAT')
 LONGITUDE = os.getenv('GPS_LON')
+STATION_ID = int(os.getenv('STATION_ID'))
 
 
 # ====== LOGGING SETUP ======
@@ -92,6 +94,7 @@ def listener_job(sensor_name, func):
                         'Sensor': sensor_name,
                         'Timestamp': time_string,
                         'Value': data,
+                        'Station_Id': STATION_ID,
                         'Lat_deg': LATITUDE,
                         'Lon_deg': LONGITUDE
                     })
@@ -120,7 +123,7 @@ def client():
     """
 
     MAX_RETRY_COUNT = 4
-    SHORT_WAIT_TIME = 25 + random.uniform(0, 5)
+    SHORT_WAIT_TIME = 20
     LONG_WAIT_TIME = 180  # 3 minutes
     retry_count = 0
 

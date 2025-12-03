@@ -41,12 +41,14 @@ def get_flood_data():
             # HIGH = No water detected -> do nothing
             if sensor_state == GPIO.HIGH:
                 time.sleep(5) # Wait 5 seconds to try to detect again
-                return "NOTHING_DETECTED"
+                # return "NOTHING_DETECTED"
+                return 0
 
             else:
                 # Return if Flood is DETECTED
                 logger.info("Flooding has been DETECTED and sent to submmit the Model!")
-                return "FLOOD_DETECTED"
+                # return "FLOOD_DETECTED"
+                return 1
 
     except Exception as e:
         logger.info("\n❌ An error has occurred with the Flood Sensor: \n\n %s", e)

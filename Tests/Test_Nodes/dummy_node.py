@@ -17,10 +17,11 @@ def get_data():
     now = datetime.datetime.now()
     time_string = f"{now.hour}:{now.minute}:{now.second}"
     
-    return {
-        "Sensor": random.choice(["Rain Gauge", "Flood Sensor"]),
-        "Metrics": random.uniform(20, 30),
-        "Time": time_string
-    }
+    return random.uniform(20, 30)
+    # return {
+    #     "Sensor": random.choice(["Rain Gauge", "Flood Sensor"]),
+    #     "Metrics": random.uniform(20, 30),
+    #     "Time": time_string
+    # }
 
 ###########################################################

@@ -3,3 +3,4 @@ python-dotenv
 RPi.GPIO; platform_machine=="armv7l" or platform_machine=="aarch64"
 upstream-sdk
 dht11 # For HiLetgo sensor (temperature and humidity)
+pandas>=2.3.3  
