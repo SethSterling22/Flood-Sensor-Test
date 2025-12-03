@@ -196,9 +196,10 @@ def extract_and_flatten_data(node_id, timestamp, data_item):
     lat_deg = data_item.get("Lat_deg") or data_item.get("lat_deg")
     lon_deg = data_item.get("Lon_deg") or data_item.get("lon_deg")
 
-    if sensor_name is None or raw_value is None:
+    if sensor_name is None:
         logger.warning("⚠️ Item del buffer incompleto, saltando: %s", data_item)
         return []
+
 
     elif sensor_name == "Temperature and Humidity" and isinstance(raw_value, (list, tuple)) and len(raw_value) >= 2:
         temp_value = raw_value[0]

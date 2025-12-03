@@ -88,11 +88,8 @@ def listener_job(sensor_name, func):
                 # Call to the function
                 data = func()
                 with BUFFER_LOCK:
-                    now = datetime.datetime.now()
-                    time_string = f"{now.hour}:{now.minute}:{now.second}"
                     SENSOR_DATA_BUFFER.append({
                         'Sensor': sensor_name,
-                        'Timestamp': time_string,
                         'Value': data,
                         'Station_Id': STATION_ID,
                         'Lat_deg': LATITUDE,
