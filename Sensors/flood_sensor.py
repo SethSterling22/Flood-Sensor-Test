@@ -45,8 +45,7 @@ def get_flood_data():
 
             else:
                 # Return if Flood is DETECTED
-                logger.info("Flooding has been DETECTED and sent to submmit the Model!")
-                # return "FLOOD_DETECTED"
+                #logger.info("Flooding has been DETECTED and sent to submmit the Model!")
                 return 1
 
     except Exception as e:
