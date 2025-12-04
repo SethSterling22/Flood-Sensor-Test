@@ -20,7 +20,8 @@ from dotenv import load_dotenv
 
 
 # === ENVIRONMENT  VARIABLES ===
-load_dotenv("../Env/.env.config")  # Config env variables
+#load_dotenv("../Env/.env.config")  # Config env variables - PATH WHEN RUN MANUALLY
+load_dotenv("./Env/.env.config") # PATH WHEN RUN ON THREAD
 
 # === CONFIGURATION ===
 BUCKET_SIZE = float(os.getenv('BUCKET_SIZE'))  # mm per tip, adjust if needed
