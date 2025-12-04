@@ -23,7 +23,7 @@ from dotenv import load_dotenv
 load_dotenv("../Env/.env.config")  # Config env variables
 
 # === CONFIGURATION ===
-BUCKET_SIZE = os.getenv('BUCKET_SIZE')  # mm per tip, adjust if needed
+BUCKET_SIZE = float(os.getenv('BUCKET_SIZE'))  # mm per tip, adjust if needed
 
 # === SENSOR SETUP ===
 rain_sensor = Button(int(os.getenv('RAINFALL_SENSOR'))) # Previous 27
