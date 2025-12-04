@@ -43,34 +43,61 @@ def bucket_tipped():
     global count
     count += 1
 
+rain_sensor.when_pressed = bucket_tipped
+
+# def get_rain_data():
+#     """
+#     Counts the ammount of precipitation per minute and return the result in mm.
+#     """
+#     global count
+#     initial_count = count
+
+#     try:
+#         # Configure the event Manager of the Sensor
+#         rain_sensor.when_pressed = bucket_tipped
+
+#         # Count the total number in the 60 seconds interval
+#         current_count = count
+
+#         #time.sleep(60)
+
+#         # Calculate the difference to know the ammount of rain in the previous minute
+#         minute_tips = (current_count - initial_count) * BUCKET_SIZE
+#         #logger.info(f"Logged {minute_tips} mm for the previous minute")
+
+#         # Restart "count" for the next cicle
+#         count = 0
+        
+#         return minute_tips
+
+#     except Exception as e:
+#         logger.info("\n❌ An error has occurred with the Rain Sensor: \n\n %s", e)
+
 
 def get_rain_data():
     """
     Counts the ammount of precipitation per minute and return the result in mm.
     """
     global count
-    initial_count = count
+    
+    # 1. El conteo inicial es 0 (porque se reseteó al final del ciclo anterior)
+    #    y el conteo actual es el acumulado en los 60 segundos que esperó listener_job.
+    current_count = count
 
     try:
-        # Configure the event Manager of the Sensor
-        rain_sensor.when_pressed = bucket_tipped
+        # El cálculo del "conteo inicial" no es necesario si el contador se resetea a 0.
+        # minute_tips = (current_count - initial_count) * BUCKET_SIZE 
+        # Si count se reseteó, el valor es simplemente:
+        minute_tips = current_count * BUCKET_SIZE 
 
-        # Count the total number in the 60 seconds interval
-        current_count = count
-
-        #time.sleep(60)
-
-        # Calculate the difference to know the ammount of rain in the previous minute
-        minute_tips = (current_count - initial_count) * BUCKET_SIZE
-        #logger.info(f"Logged {minute_tips} mm for the previous minute")
-
-        # Restart "count" for the next cicle
+        # 2. Reiniciar "count" para el siguiente ciclo
         count = 0
         
         return minute_tips
 
     except Exception as e:
         logger.info("\n❌ An error has occurred with the Rain Sensor: \n\n %s", e)
+        return 0
 
 if __name__ == "__main__":
     print(get_rain_data())

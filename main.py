@@ -83,11 +83,15 @@ def listener_job(sensor_name, func):
     # Receive the information from the Sensors
     while not STOP_EVENT.is_set():
         start_time = time.time()
+        if sensor_name == "Rain Gauge":
+            target_interval = 60.0
+        else:
+            target_interval = 30.0
         try:
 
             # CLIENT is READY when NODE_ID is received by the Sever
             if CLIENT_READY:
-                # Call to the function
+                # Get the sensor data
                 data = func()
                 # Packet Structure
                 with BUFFER_LOCK:
@@ -102,7 +106,7 @@ def listener_job(sensor_name, func):
 
                 # Wait for 5 seconds (the collection interval)
                 elapsed = time.time() - start_time
-                sleep_time = max(0, 58.0 - elapsed)
+                sleep_time = max(0, target_interval - elapsed)
 
                 if STOP_EVENT.wait(sleep_time):
                     # if STOP_EVENT break
