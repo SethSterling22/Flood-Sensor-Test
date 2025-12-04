@@ -135,6 +135,8 @@ def extract_and_flatten_data(node_id, timestamp, data_list):
 
         # 3. Filter by Sensor Name and assign the value to a variable
         if sensor_name == "Rain Gauge":
+            print("DEBUG VALUE")
+            print(raw_value)
             precipitation = raw_value
 
         elif sensor_name == "Temperature and Humidity" and isinstance(raw_value, (list, tuple)) and len(raw_value) >= 2:
@@ -145,7 +147,7 @@ def extract_and_flatten_data(node_id, timestamp, data_list):
             flooding = raw_value
 
             # 4. Check flooding and activate the job subission thread
-            if flooding == 1.0:
+            if flooding == 1:
                 logger.info("🚨 Flood detected! Submitting job for processing.")
                 # Call to the Job submission
                 job_submission_thread()

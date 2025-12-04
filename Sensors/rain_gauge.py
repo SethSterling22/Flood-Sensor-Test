@@ -23,13 +23,14 @@ from dotenv import load_dotenv
 load_dotenv("./Env/.env.config")  # Config env variables
 
 # === CONFIGURATION ===
-BUCKET_SIZE = 0.2794  # mm per tip, adjust if needed
+BUCKET_SIZE = float(os.getenv('BUCKET_SIZE'))  # mm per tip, adjust if needed
 
 # === SENSOR SETUP ===
 rain_sensor = Button(int(os.getenv('RAINFALL_SENSOR'))) # Previous 27
 
 # === GLOBALS SETUP to track counts and timing ===
-count = 0
+global_count = 0
+count_lock = threading.Lock()
 
 # === LOGGING SETUP ===
 logger = logging.getLogger(__name__)
@@ -40,80 +41,101 @@ def bucket_tipped():
     """
     This function is called by the sensor event. It only increase the counter.
     """
-    global count
-    count += 1
+    global global_count
+    # Usar el lock para incrementar el contador de forma segura
+    with count_lock:
+        global_count += 1
+    # logger.debug(f"Tip registrado. Total: {global_count}")
+
+
+# def get_rain_data():
+#     """
+#     Counts the ammount of precipitation per minute and return the result in mm.
+#     """
+#     global global_count
+#     initial_count = global_count
+
+#     try:
+#         # Configure the event Manager of the Sensor
+#         rain_sensor.when_pressed = bucket_tipped
+
+#         # Count the total number in the 60 seconds interval
+#         current_count = global_count
+
+#         # Calculate the difference to know the ammount of rain in the previous minute
+#         minute_tips = (current_count - initial_count) * BUCKET_SIZE
+#         #logger.info(f"Logged {minute_tips} mm for the previous minute")
+
+#         # Restart "count" for the next cicle
+#         global_count = 0
+
+#         return minute_tips
+
+#     except Exception as e:
+#         logger.info("\n❌ An error has occurred with the Rain Sensor: \n\n %s", e)
+
+# if __name__ == "__main__":
+#     get_rain_data()
+
+
+
+
+def calculate_and_reset_rainfall():
+    """
+    Calcula la lluvia acumulada y resetea el contador para el siguiente minuto.
+    """
+    global global_count
+
+    # 1. Adquirir el Lock para asegurar que la lectura y el reseteo sean atómicos
+    with count_lock:
+        # Capturar el conteo del último minuto
+        minute_tips_count = global_count 
+        
+        # Reset the counter
+        global_count = 0 
+
+    # 2. Calcular la lluvia (fuera del Lock)
+    minute_rainfall_mm = minute_tips_count * BUCKET_SIZE
+
+
+    return minute_rainfall_mm
 
 
 def get_rain_data():
     """
-    Counts the ammount of precipitation per minute and return the result in mm.
+    Principal thread function, collect sync by time
     """
-    global count
-    initial_count = count
-    logger.info("🌧️ Starting Rain Gauge monitoring...")
 
-    try:
-        # Configure the event Manager of the Sensor
-        rain_sensor.when_pressed = bucket_tipped
+    # Configure the sensor
+    rain_sensor.when_pressed = bucket_tipped
 
-        # Count the total number in the 60 seconds interval
-        current_count = count
+    current_time_seconds = time.time()
+    seconds_until_next_minute = 60.0 - (current_time_seconds % 60.0)
+    time.sleep(seconds_until_next_minute)
 
-        #time.sleep(60)
+    while True:
+        try:
+            # Exectute the data collection
+            print(calculate_and_reset_rainfall())
 
-        # Calculate the difference to know the ammount of rain in the previous minute
-        minute_tips = (current_count - initial_count) * BUCKET_SIZE
-        #logger.info(f"Logged {minute_tips} mm for the previous minute")
+            # Wait a minute to reset
+            time.sleep(60)
 
-        # Restart "count" for the next cicle
-        count = 0
-        
-        return minute_tips
+        except KeyboardInterrupt:
+            logger.info("Stopped by user.")
+            break
+        except Exception as e:
+            logger.error("❌ Thread error in collection %s", e)
+            time.sleep(5)
 
-    except Exception as e:
-        logger.info("\n❌ An error has occurred with the Rain Sensor: \n\n %s", e)
 
 if __name__ == "__main__":
     get_rain_data()
 
-
-# === INITIALIZATION FUNCTIONS AND UTILS ===
-
-########################### Se va para main ###########################
-
-# También para main !!!
+########################### Old version ###########################
 # current_hour_str = None
 # current_measurement_file = None
 # last_logged_minute = None
-
-
-
-# def init_sensor_file_if_needed():
-#     if not os.path.exists(LOG_DIR):
-#         os.makedirs(LOG_DIR)
-#     if not os.path.exists(SENSOR_FILE):
-#         try:
-#             with open(SENSOR_FILE, "w", newline="") as f:
-#                 writer = csv.writer(f, delimiter=",")
-#                 writer.writerow(["alias","variablename","postprocess","units","datatype"])
-#                 writer.writerow(["precipitation","precipitation","true","mm","float"])
-#             logger.info(f"✅ Created sensor file with headers at {SENSOR_FILE}")
-#         except Exception as e:
-#             logger.error(f"Failed to create sensor file: {e}")
-#     else:
-#         logger.info(f"Sensor file already exists at {SENSOR_FILE}")
-
-
-# def get_measurement_file_for_hour(dt):
-#     return os.path.join(LOG_DIR, f"rain_{dt.strftime('%Y%m%d_%H')}.csv")
-
-
-# def init_measurement_file_if_needed(filepath):
-#     if not os.path.exists(filepath):
-#         with open(filepath, "w", newline="") as f:
-#             writer = csv.writer(f, delimiter=",")
-#             writer.writerow(["Precipitation_mm","collectiontime","Lat_deg","Lon_deg"])
-
 
 
 # # === PRINCIPAL FUNCTIONS ===
@@ -149,86 +171,6 @@ if __name__ == "__main__":
 #     # Configure the next 60 seconds
 #     t = Timer(60, log_minute_data)
 #     t.start()
-########################### Se va para main ###########################
+########################### Old version ###########################
 
 
-
-# OLD !!!
-# === LOGGING SETUP ===
-# logging.basicConfig(
-#     level=logging.INFO,
-#     format='%(asctime)s - %(levelname)s - %(message)s',
-#     handlers=[
-#         logging.FileHandler(os.path.join(LOG_DIR,'rain_gauge_sensor.log')),
-#         logging.StreamHandler()
-#     ]
-# )
-# logger = logging.getLogger(__name__)
-
-# === WRITE PID FILE ===
-# with open(PID_FILE, "w") as f:
-#     f.write(str(os.getpid()))
-
-
-
-
-# def log_minute_data(minute_dt, rainfall_mm):
-#     """This function is responsible for logging data every minute."""
-#     try:
-#         init_measurement_file_if_needed(current_measurement_file)
-#         timestamp_iso = minute_dt.replace(second=0, microsecond=0, tzinfo=timezone.utc).isoformat()
-
-#         with open(current_measurement_file, "a", newline="") as f:
-#             writer = csv.writer(f, delimiter=",")
-#             writer.writerow([rainfall_mm, timestamp_iso,GPS_LAT,GPS_LON])
-#         logger.info(f"💧 Logged {rainfall_mm:.2f} mm for minute starting {timestamp_iso} to {os.path.basename(current_measurement_file)}")
-
-#     except Exception as e:
-#         logger.error(f"Failed to log minute data: {e}")
-
-
-
-
-# def main():
-    # global current_hour_str, current_measurement_file, count, last_logged_minute
-    # logger.info("🌧️ Starting rain gauge monitor...")
-    # init_sensor_file_if_needed()    
-
-    # try:
-    #     while True:
-    #         # now = datetime.now()
-    #         # hour_str = now.strftime('%Y%m%d_%H')
-    #         # current_minute = now.replace(second=0, microsecond=0)
-
-    #         # Call to the RainFall Sensor Function
-    #         rain_sensor.when_pressed = bucket_tipped
-
-    #         # Rotate measurement file on hour change
-    #         if current_hour_str != hour_str:
-    #             current_hour_str = hour_str
-    #             current_measurement_file = get_measurement_file_for_hour(now)
-    #             logger.info(f"🕰️ New hour started: logging measurements to {os.path.basename(current_measurement_file)}")
-    #             # Reset last logged minute so first minute can log properly
-    #             last_logged_minute = None
-
-    #         # Check if we moved to a new minute (and last_logged_minute is set)
-    #         if last_logged_minute is None:
-    #             last_logged_minute = current_minute
-
-    #         elif current_minute > last_logged_minute:
-    #             # Time to log previous minute's rainfall
-    #             rainfall_mm = count * BUCKET_SIZE
-    #             log_minute_data(last_logged_minute, rainfall_mm)
-    #             count = 0  # Reset for new minute
-    #             last_logged_minute = current_minute
-
-    #         time.sleep(0.1)
-
-    # except KeyboardInterrupt:
-    #     logger.info("🌧️ Rain gauge monitoring stopped by user.")
-
-
-
-
-# if the average of the mm per minute from the past 60 logs is more than 10mm it will send all the information that it have in queue to send that day
-# Both rain gauge and flood data !!! HARD RAIN

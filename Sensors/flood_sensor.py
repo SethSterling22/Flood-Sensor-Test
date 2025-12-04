@@ -32,7 +32,6 @@ def get_flood_data():
     This function return two signals for further processing
     based if the liquid sensordetects water or not.
     """
-    #logger.info("💧 Starting Flood Sensor monitoring...")
 
     try:
         while True:
