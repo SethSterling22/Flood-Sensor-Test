@@ -20,10 +20,10 @@ from dotenv import load_dotenv
 
 
 # === ENVIRONMENT  VARIABLES ===
-load_dotenv("./Env/.env.config")  # Config env variables
+load_dotenv("../Env/.env.config")  # Config env variables
 
 # === CONFIGURATION ===
-BUCKET_SIZE = float(os.getenv('BUCKET_SIZE'))  # mm per tip, adjust if needed
+BUCKET_SIZE = os.getenv('BUCKET_SIZE')  # mm per tip, adjust if needed
 
 # === SENSOR SETUP ===
 rain_sensor = Button(int(os.getenv('RAINFALL_SENSOR'))) # Previous 27
@@ -73,7 +73,7 @@ def get_rain_data():
         logger.info("\n❌ An error has occurred with the Rain Sensor: \n\n %s", e)
 
 if __name__ == "__main__":
-    get_rain_data()
+    print(get_rain_data())
 
 
 
