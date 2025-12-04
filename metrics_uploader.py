@@ -55,7 +55,7 @@ logger = logging.getLogger(__name__)
 def init_sensor_file():
     try:
         if not os.path.exists(SENSOR_FILE):
-            with open(SENSOR_FILE, "w", newline="", encoding='utf-8-sig') as file:
+            with open(SENSOR_FILE, "w", newline="") as file:
                 writer = csv.writer(file, delimiter="\t")
                 writer.writerow(["alias,variablename,postprocess,units,datatype"]) # Default fields
 
