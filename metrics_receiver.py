@@ -6,6 +6,8 @@ these nodes send every minute and queues it for upload.
 
 
 
+################################ IMPORT MODULES AND LIBRARIES ####################################
+##################################################################################################
 import os
 import sys
 import csv
@@ -19,9 +21,11 @@ import threading
 from dotenv import load_dotenv
 from metrics_uploader import run_uploader
 from utils import get_next_hourly_filename, job_submission_thread
+##################################################################################################
 
 
 
+############################### GLOBAL VARIABLES INITIALIZATION ##################################
 ##################################################################################################
 # ====== ENVIRONMENT VARIABLES ======
 load_dotenv("./Env/.env.config")
@@ -66,8 +70,8 @@ logger = logging.getLogger(__name__)
 
 
 
+##################################### CSV MANAGE SECTION #########################################
 ##################################################################################################
-# ====== SETUP CSV ======
 def setup_csv(filename):
     """
     Create the CSV with the given name and add the header
@@ -161,7 +165,6 @@ def extract_and_flatten_data(node_id, timestamp, data_list):
     return complete_row
 
 
-# ====== CSV WRITER ======
 def csv_writer_job():
     """
     Thread dedicated to consuming tasks from the
@@ -176,7 +179,6 @@ def csv_writer_job():
     logger.info("📝 CSV Writer thread started.")
     while not STOP_EVENT.is_set():
         try:
-            # Espera por datos en la cola por 1 segundo
             item = CSV_WRITE_QUEUE.get(timeout=1)
             data_list, node_id = item # data_list contains the dictionary to plain
 
@@ -189,13 +191,6 @@ def csv_writer_job():
                 complete_row = extract_and_flatten_data(node_id, now, data_list)
             except Exception as e:
                 logger.error("❌ Error during data plain: %s for item: %s", e, data_list)
-
-            # for data_item in data_list:
-            #     try:
-            #         flattened_rows = extract_and_flatten_data(node_id, now, data_item)
-            #         complete_row.extend(flattened_rows)
-            #     except Exception as e:
-            #         logger.error("❌ Error during data plain: %s for item: %s", e, data_item)
 
             try:
                 # Write in file just if there are valid rows
@@ -273,9 +268,9 @@ def handle_upload_and_rotation(file_to_upload):
             logger.info("✅ Rotation successful. New active file.: %s", os.path.basename(CSV_FILE))
 
             if not upload_success:
-                # Si falla, el archivo antiguo (file_to_upload) se mantiene para un reintento futuro.
+                # If fails, the file persist for a new try
                 logger.warning("⚠️ Upload failed, but rotation successful. Data is now being written to the new file: %s", os.path.basename(CSV_FILE))
-                logger.warning("Archivo fallido mantenido para reintento: %s", os.path.basename(file_to_upload))
+                logger.warning("Failed file keept to re-try: %s", os.path.basename(file_to_upload))
 
             return True
         logger.error("❌ Failure to create new CSV file during rotation.")
@@ -299,6 +294,7 @@ def uploader_metrics(file_to_upload):
 
 
 
+################################## CLIENT MANAGEMENT SECTION #####################################
 ##################################################################################################
 def handle_client(conn, addr):
     """
@@ -360,12 +356,10 @@ def handle_client(conn, addr):
             conn.close()
             return
 
-
         # ############ Main loop with minute-precision synchronization ############
         while not STOP_EVENT.is_set():
 
             # Initial synchronization to the next minute boundary
-
             now = datetime.datetime.now()
             sleep_time = 60 - now.second - (now.microsecond / 1_000_000.0)
 
@@ -402,15 +396,6 @@ def handle_client(conn, addr):
                     conn.sendall(b"PROTOCOL_ERROR")
                     return
 
-                # Send ACK to client
-                try:
-                    conn.sendall(b"DATA_RECEIVED")
-                    logger.info("👍 DATA_RECEIVED sent to client %s", node_id)
-                # except:
-                #     pass
-                except Exception:
-                    safe_cleanup(node_id)
-
                 # Receive the data in chunks
                 data_bytes = b''
                 bytes_received = 0
@@ -422,6 +407,13 @@ def handle_client(conn, addr):
                         raise ConnectionResetError("❌ Connection lost during data transfer.")
                     data_bytes += chunk
                     bytes_received += len(chunk)
+
+                # Send ACK to client
+                try:
+                    conn.sendall(b"DATA_RECEIVED")
+                    logger.info("👍 DATA_RECEIVED sent to client %s", node_id)
+                except Exception:
+                    safe_cleanup(node_id)
 
                 # Process and save data
                 try:
@@ -461,49 +453,43 @@ def handle_client(conn, addr):
 
 
 def safe_cleanup(node_id, client_conn=None):
-    """
-    Desindexa y cierra de forma segura los recursos asociados a un nodo.
-    Se utiliza el lock global para asegurar la atomicidad de la operación.
+    """.
+    Safely deindex and close the resources associated with a node.
     """
     thread_name = threading.current_thread().name
 
     with INDEX_LOCK:
         conn_to_close = None
 
-        # 1. Limpiar CLIENTS_INDEX
+        # 1. Clean CLIENTS_INDEX
         if node_id in CLIENTS_INDEX:
-            # Esto evita que un hilo antiguo mate una conexión nueva.
             if client_conn is not None and CLIENTS_INDEX[node_id] is not client_conn:
-                # El cliente indexado es diferente al que estamos intentando limpiar (es una reconexión).
-                # Solo cerramos la conexión que se nos pasó, pero NO la desindexamos.
+                # Just close connection
                 logging.warning("[%s] ⚠️ Ignoring desindexing for %s: A newer connection is already active.", thread_name, node_id)
                 conn_to_close = client_conn
 
             else:
-                # El nodo no se ha reconectado o somos el dueño de la conexión activa.
                 conn_to_close = CLIENTS_INDEX.pop(node_id, None)
                 logging.info("[%s] Client %s desindexed.", thread_name, node_id)
 
-        # 2. Limpiar CLIENT_SEND_EVENTS (independiente de la conexión)
+        # 2. Clean CLIENT_SEND_EVENTS
         if node_id in CLIENT_SEND_EVENTS:
             CLIENT_SEND_EVENTS.pop(node_id, None)
 
-    # 3. Cerrar la conexión (Fuera del lock, si es posible, para evitar bloqueos)
+    # 3. Close connection to prevent blocks
     if conn_to_close:
         try:
-            # Si el scheduler llama a esta función, el socket podría estar cerrado.
             conn_to_close.shutdown(socket.SHUT_RDWR)
             conn_to_close.close()
             logging.info("[%s] Connection %s closed.", thread_name, node_id)
         except OSError as e:
-            # Es normal si el socket ya está cerrado por el cliente.
             logging.debug("[%s] Socket %s already closed: %s", thread_name, node_id, e)
         except Exception as e:
             logging.error("[%s] Error closing the socket %s: %s", thread_name, node_id, e)
 ##################################################################################################
 
 
-
+########################### THREAD INITIALIZATION AND STOP MANAGEMENT ############################
 ##################################################################################################
 def main_server():
     """
@@ -571,4 +557,3 @@ if __name__ == "__main__":
         # Tiny lapse to detect the stop
         time.sleep(2)
 ##################################################################################################
-

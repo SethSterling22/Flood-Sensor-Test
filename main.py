@@ -10,6 +10,8 @@ from both sensors.
 
 
 
+############################### GLOBAL VARIABLES INITIALIZATION ##################################
+##################################################################################################
 import os
 import sys
 import time
@@ -20,16 +22,16 @@ import logging
 import threading
 from dotenv import load_dotenv
 
-
 # Import sensor functions
-##############################################################
 from Sensors.rain_gauge import get_rain_data as rain_gauge_data
 from Sensors.flood_sensor import get_flood_data as flood_sensor_data
 from Sensors.temp_and_humid_sensor import get_temp_and_humid_data as temp_humid_data
-##############################################################
+##################################################################################################
 
 
 
+############################### GLOBAL VARIABLES INITIALIZATION ##################################
+##################################################################################################
 # ====== ENVIRONMENT VARIABLES ======
 LOG_DIR = "./Logs/"
 os.makedirs(LOG_DIR, exist_ok=True)
@@ -45,7 +47,7 @@ NODE_ID = f"NODE_{os.getenv('NODE_PREFIX', 'default')}" # Must start with "NODE_
 
 # ====== GLOBAL VARIABLES ======
 CLIENT_READY = False
-SENSOR_DATA_BUFFER = [] 
+SENSOR_DATA_BUFFER = []
 BUFFER_LOCK = threading.Lock()
 STOP_EVENT = threading.Event()
 LATITUDE = float(os.getenv('GPS_LAT'))
@@ -63,11 +65,12 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+##################################################################################################
 
 
 
-# ====== Thread Sensor Function ======
-##############################################################################################
+################################### THREAD SENSOR FUNCTION #######################################
+##################################################################################################
 def listener_job(sensor_name, func):
     """
     Manages sensor data collection and 
@@ -97,7 +100,6 @@ def listener_job(sensor_name, func):
                     })
                     logger.debug("Buffered %s data: %.2f", sensor_name, data)
 
-
                 # Wait for 5 seconds (the collection interval)
                 elapsed = time.time() - start_time
                 sleep_time = max(0, 58.0 - elapsed)
@@ -113,16 +115,16 @@ def listener_job(sensor_name, func):
 
 
 
-# ====== Thread Client Function ======
-##############################################################################################
+################################### THREAD CLIENT FUNCTION #######################################
+##################################################################################################
 def client():
     """
     Manages the connection and the messages to the server.
     """
 
-    MAX_RETRY_COUNT = 4
-    SHORT_WAIT_TIME = 20
-    LONG_WAIT_TIME = 180  # 3 minutes
+    max_retry_count = 4
+    short_wait_time = 20
+    long_wait_time = 180  # 3 minutes
     retry_count = 0
 
     global CLIENT_READY
@@ -131,12 +133,12 @@ def client():
         try:
             # Open socket and prepares to receive messages
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.settimeout(10) 
-                logger.info("📡 Connecting to %s:%d (Attempt %d/%d)", RECEIVER_HOST, RECEIVER_PORT, retry_count + 1, MAX_RETRY_COUNT)
+                s.settimeout(10)
+                logger.info("📡 Connecting to %s:%d (Attempt %d/%d)", RECEIVER_HOST, RECEIVER_PORT, retry_count + 1, max_retry_count)
                 s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
                 s.connect((RECEIVER_HOST, RECEIVER_PORT))
 
-                s.settimeout(35) 
+                s.settimeout(35)
                 # Wait until server connects and send the CONNECTED message
                 response = s.recv(9).decode().strip()
                 logger.info("📡 SERVER response on Connection: %s", response)
@@ -153,11 +155,11 @@ def client():
                 s.sendall(NODE_ID.encode('utf-8'))
 
                 # Read the server message
-                response_bytes = s.recv(11) 
+                response_bytes = s.recv(11)
                 response = response_bytes.decode().strip()
                 logger.info("📡 SERVER respond with: %s", response)
 
-                # Connection stablished and Node registered 
+                # Connection stablished and Node registered
                 if response.startswith("ID_RECEIVED"):
                     CLIENT_READY = True
                     logger.info("✅ Connection established and ID registered. Starting data collection... 📊")
@@ -183,7 +185,7 @@ def client():
 
                             try:
                                 s.settimeout(0.1)
-                                drain_bytes = s.recv(30) 
+                                drain_bytes = s.recv(30)
                                 if drain_bytes:
                                     logger.warning("🌊 Drained residual signal after ID_RECEIVED: %s", drain_bytes.decode().strip())
 
@@ -193,7 +195,7 @@ def client():
                             except Exception as e:
                                 logger.debug("Error draining buffer after ID_RECEIVED: %s", e)
 
-                            # 3. CODIFICATION AND PREPARATION OF LENGTH PROTOCOL 
+                            # 3. CODIFICATION AND PREPARATION OF LENGTH PROTOCOL
                             with BUFFER_LOCK:
                                 # If buffer is empty, send "NO_DATA"
                                 if not SENSOR_DATA_BUFFER:
@@ -206,7 +208,7 @@ def client():
                                     logger.info("📤 Sending %s data points.", len(data_to_send))
                                     logger.info("DATA sent:\n %s", data_to_send)
 
-                            # PAYLOAD BUILDING 
+                            # PAYLOAD BUILDING
                             if not data_to_send:
                                 payload_str = "NO_DATA"
                             else:
@@ -216,15 +218,14 @@ def client():
                                     logger.error("⚠️ Error serializing JSON. Check data format: %s. Data not sent.", e)
                                     break
 
-                            
                             payload_bytes = payload_str.encode('utf-8')
                             payload_length_bytes = str(len(payload_bytes)).zfill(8).encode('utf-8')
 
-                            try: 
+                            try:
                                 # 4. SEND LENGTH & PAYLOAD (Short timeout to write: 15s)
                                 full_payload = payload_length_bytes + payload_bytes
-                                s.settimeout(45) 
-                                s.sendall(full_payload) 
+                                s.settimeout(45)
+                                s.sendall(full_payload)
 
                                 # 5. WAIT SERVER CONFIRMATION (ACK)
                                 ack_bytes = s.recv(13)
@@ -232,7 +233,7 @@ def client():
 
                                 if not ack_bytes:
                                     logger.error("🚫 Server closed connection unexpectedly after data submission.")
-                                    break 
+                                    break
 
                                 if not ack:
                                     logger.error("❌ Server ACK error receiving data: ACK received was empty or corrupted.")
@@ -247,27 +248,25 @@ def client():
                                     with BUFFER_LOCK:
                                         SENSOR_DATA_BUFFER.clear()
                                     # Go back to the start for the next READY_TO_INDEX signal
-                                    continue 
+                                    continue
 
-                                elif ack == "JSON_ERROR":
+                                if ack == "JSON_ERROR":
                                     logger.error("❌ Server failed decoding JSON data. The data was not saved.")
                                     break
 
-                                elif ack.startswith("READY_TO_INDEX"):
+                                if ack.startswith("READY_TO_INDEX"):
                                     # Server too fast, ACK desynchronized
                                     logger.warning("⚠️ Desynchronization: Received READY_TO_INDEX instead of ACK. Reconnecting to sync.")
-                                    break 
-
-                                else:
-                                    logger.error("❌ Server ACK error receiving data: %s", ack)
                                     break
+                                logger.error("❌ Server ACK error receiving data: %s", ack)
+                                break
 
                             except socket.timeout:
                                 # If server doesn't respond the ACK on time
                                 logger.error("❌ Timeout waiting for server ACK (45s). Disconnecting to retry.")
                                 break
 
-                            except socket.error as se: 
+                            except socket.error as se:
                                 # Capture BrokenPipeError, ConnectionResetError
                                 logger.error("❌ Socket error during send/ACK (%s). Disconnecting to retry.", se)
                                 break
@@ -298,26 +297,27 @@ def client():
             # Increase the counter
             retry_count += 1
 
-            if retry_count < MAX_RETRY_COUNT:
-                reconnect_time = SHORT_WAIT_TIME + random.uniform(0, 5)
+            if retry_count < max_retry_count:
+                reconnect_time = short_wait_time + random.uniform(0, 5)
                 logger.info("⏳ Waiting %d seconds before next retry...", reconnect_time)
                 if STOP_EVENT.wait(reconnect_time):
                     # if STOP_EVENT break
                     break
             else:
-                logger.info("😴 Failed %d times. Waiting %d seconds before resetting attempts...", MAX_RETRY_COUNT, LONG_WAIT_TIME)
-                if STOP_EVENT.wait(LONG_WAIT_TIME):
+                logger.info("😴 Failed %d times. Waiting %d seconds before resetting attempts...", max_retry_count, long_wait_time)
+                if STOP_EVENT.wait(long_wait_time):
                     # if STOP_EVENT break
                     break
-                retry_count = 0 
+                retry_count = 0
 
     CLIENT_READY = False
     logger.info("🔌 Client thread terminated.")
-##############################################################################################
+##################################################################################################
 
 
 
-##############################################################################################
+########################## THREAD INITIALIZATION AND STOP MANAGEMENT #############################
+##################################################################################################
 if __name__ == "__main__":
     # Start Client on thread to do not block main
     client_thread = threading.Thread(target=client)
@@ -346,5 +346,4 @@ if __name__ == "__main__":
         client_thread.join() # Wait until the client stop
         logger.info("👋 All threads stopped")
         sys.exit(0)
-##############################################################################################
-
+##################################################################################################
