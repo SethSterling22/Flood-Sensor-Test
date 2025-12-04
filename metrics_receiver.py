@@ -74,13 +74,13 @@ def setup_csv(filename):
     """
     try:
         if not os.path.exists(SENSOR_FILE):
-            with open(SENSOR_FILE, "w", newline="") as file:
+            with open(SENSOR_FILE, "w", newline="", encoding='utf-8-sig') as file:
                 writer = csv.writer(file, delimiter="\t")
                 writer.writerow(["alias,variablename,postprocess,units,datatype"]) # Default fields
 
                 # Fields to upload
                 writer.writerow(["Precipitation,Precipitation,False,mm,float"])
-                writer.writerow(["Degrees,Degrees,False,Celsius,float"])
+                writer.writerow(["Temperature,Temperature,False,Celsius,float"])
                 writer.writerow(["Humidity,Humidity,False,Percentage,float"])
                 writer.writerow(["Flooding,Flooding,False,boolean,integer"])
 
@@ -94,9 +94,9 @@ def setup_csv(filename):
         if not os.path.exists(filename):
             with open(filename, mode='w', newline='', encoding='utf-8-sig') as file:
                 # write on the CSV the data
-                # CSV FORMAT: | Precipitation | Degrees | Flooding | Node_Id | Station_Id | collectiontime | Lat_deg | Lon_deg |
-                csv.writer(file).writerow(['Precipitation', 'Degrees', 'Flooding', 'Humidity', 'Node_Id', 'Station_Id', 'collectiontime', "Lat_deg", "Lon_deg"])
-                #csv.writer(file).writerow(['Metrics', 'collectiontime', 'Sensor_Name', 'Node_ID', "Lat_deg", "Lon_deg"])
+                # CSV FORMAT: | Precipitation | DTemperatureegrees | Humidity | Flooding | Node_Id | Station_Id | collectiontime | Lat_deg | Lon_deg |
+                csv.writer(file).writerow(['Precipitation', 'Temperature', 'Humidity', 'Flooding', 'Node_Id', 'Station_Id', 'collectiontime', "Lat_deg", "Lon_deg"])
+
             logger.info("💾 File data %s ready with headers.", filename)
         else:
             logger.info("💾 File data %s already exists.", filename)
@@ -106,80 +106,11 @@ def setup_csv(filename):
         return False
 
 
-# def extract_and_flatten_data(node_id, timestamp, data_item):
-#     """
-#     Extrac and plain the JSON fields for Metrics to CSV final format.
-#     {"Sensor": "Rain Gauge", "Value": 0.0, "Lat_deg": "...", "Lon_deg": "..."}
-#     """
-#     rows = []
-
-#     # Sensibility case
-#     sensor_name = data_item.get("sensor") or data_item.get("Sensor")
-#     raw_value = data_item.get("value") or data_item.get("Value")
-#     lat_deg = data_item.get("lat_deg") or data_item.get("Lat_deg")
-#     lon_deg = data_item.get("lon_deg") or data_item.get("Lon_deg")
-
-#     # Check if there's flooding, then start the thread for job submission
-#     if sensor_name == "Flood Sensor":
-#         if raw_value == 1.0:
-#             job_submission_thread()
-
-#     if sensor_name == "Temperature and Humidity" and isinstance(raw_value, (list, tuple)) and len(raw_value) >= 2:
-#         temp_value = raw_value[0]
-#         humidity_value = raw_value[1]
-
-#         # Add Temperature row
-#         rows.append([node_id, timestamp, "Temperature",temp_value, lat_deg, lon_deg])
-
-#         # Add Humidity row
-#         rows.append([node_id, timestamp, "Humidity", humidity_value, lat_deg, lon_deg])
-
-#         # Devolver las dos filas generadas
-#         return rows
-
-#     # return rows
-#     metric_value = raw_value
-
-#     # 1. Extraction and normalization of metrics
-#     if isinstance(metric_value, dict):
-#         # Try to get the metric value with Key "Metrics"
-#         extracted_metric = metric_value.get('Metrics') or metric_value.get('metrics')
-
-#         if extracted_metric is not None:
-#             metric_value = extracted_metric
-#         else:
-#             # If not "Metrics", fallback
-#             logger.warning("⚠️ Sensor value %s is a dict, but doesn't have key 'Metrics'. Serializing full content.", sensor_name)
-#             try:
-#                 metric_value = json.dumps(raw_value)
-#             except TypeError:
-#                 metric_value = str(raw_value)
-
-#     # 2. Build thw row if sensor and value != None
-#     if isinstance(metric_value, (list, dict)):
-#         try:
-#             metric_value = json.dumps(metric_value)
-#         except TypeError as e:
-#             # Fallback if the object is not serializable
-#             logger.warning("⚠️ No serializable object to JSON, using str() as fallback: %s", e)
-#             metric_value = str(metric_value)
-
-#     # 3. Build the row if sensor and value != None
-#     if sensor_name and metric_value is not None:
-#         rows.append([metric_value, timestamp, sensor_name, node_id, lat_deg, lon_deg])
-
-#     return rows
-
-
-
-def extract_and_flatten_data(node_id, timestamp, data_item):
+def extract_and_flatten_data(node_id, timestamp, data_list):
     """
     Extract and aggregate the data fields into a single row 
     based on the new fixed CSV format (Precipitation, Degrees, Flooding)
-    and includes the global STATION_ID.
     """
-
-    rows = []
 
     # 1. Initialize values
     precipitation = None
@@ -187,43 +118,47 @@ def extract_and_flatten_data(node_id, timestamp, data_item):
     humidity_value = None
     flooding = None
 
-    # 2. Buffer data extraction and metadata extraction from "data_item"
-    sensor_name = data_item.get("Sensor") or data_item.get("sensor")
-    raw_value = data_item.get("Value") or data_item.get("value")
+    for data_item in data_list:
 
-    # Extract metadata
-    station_id = data_item.get("Station_Id") or data_item.get("station_id")
-    lat_deg = data_item.get("Lat_deg") or data_item.get("lat_deg")
-    lon_deg = data_item.get("Lon_deg") or data_item.get("lon_deg")
+        # 2. Buffer data extraction and metadata extraction from "data_item"
+        sensor_name = data_item.get("Sensor") or data_item.get("sensor")
+        raw_value = data_item.get("Value") or data_item.get("value")
 
-    if sensor_name is None:
-        logger.warning("⚠️ Item del buffer incompleto, saltando: %s", data_item)
-        return []
+        # Extract metadata
+        station_id = data_item.get("Station_Id") or data_item.get("station_id")
+        lat_deg = data_item.get("Lat_deg") or data_item.get("lat_deg")
+        lon_deg = data_item.get("Lon_deg") or data_item.get("lon_deg")
 
+        if sensor_name is None:
+            logger.warning("⚠️ Item del buffer incompleto, saltando: %s", data_item)
+            return []
 
-    # 3. Filter by Sensor Name and assign the value to a variable
-    if sensor_name == "Rain Gauge":
-        precipitation = raw_value
-    elif sensor_name == "Temperature and Humidity" and isinstance(raw_value, (list, tuple)) and len(raw_value) >= 2:
-        temp_value = raw_value[0]
-        humidity_value = raw_value[1]
-    elif sensor_name == "Flood Sensor":
-        flooding = raw_value
-        # 4. Check flooding and activate the job subission thread
-        if flooding == 1.0:
-            logger.info("🚨 Flood detected! Submitting job for processing.")
-            # Call to the Job submission
-            job_submission_thread()
-    else:
-        # Sensor doesn't have a column, ignore
-        logger.warning("⚠️ Unmapped sensor (%s) ignored in normalization to fixed CSV format.", sensor_name)
-        return []
+        # 3. Filter by Sensor Name and assign the value to a variable
+        if sensor_name == "Rain Gauge":
+            precipitation = raw_value
+
+        elif sensor_name == "Temperature and Humidity" and isinstance(raw_value, (list, tuple)) and len(raw_value) >= 2:
+            temp_value = raw_value[0]
+            humidity_value = raw_value[1]
+
+        elif sensor_name == "Flood Sensor":
+            flooding = raw_value
+
+            # 4. Check flooding and activate the job subission thread
+            if flooding == 1.0:
+                logger.info("🚨 Flood detected! Submitting job for processing.")
+                # Call to the Job submission
+                job_submission_thread()
+        else:
+            # Sensor doesn't have a column, ignore
+            logger.warning("⚠️ Unmapped sensor (%s) ignored in normalization to fixed CSV format.", sensor_name)
+            return []
 
     # 5. Row construction
     # CSV ORDER: ['Precipitation', 'Degrees', 'Flooding', 'Node_Id', 'Station_Id', 'collectiontime', 'Lat_deg', 'Lon_deg']
-    rows.append([precipitation, temp_value, humidity_value, flooding, node_id, station_id, timestamp, lat_deg, lon_deg])
+    complete_row = [precipitation, temp_value, humidity_value, flooding, node_id, station_id, timestamp, lat_deg, lon_deg]
 
-    return rows
+    return complete_row
 
 
 # ====== CSV WRITER ======
@@ -247,25 +182,30 @@ def csv_writer_job():
 
             # 1. Process and writing
             now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            all_rows = []
+            complete_row = []
 
-            for data_item in data_list:
-                try:
-                    # Aplana el JSON en el formato final de fila CSV
-                    flattened_rows = extract_and_flatten_data(node_id, now, data_item)
-                    all_rows.extend(flattened_rows)
-                except Exception as e:
-                    logger.error("❌ Error during data plain: %s for item: %s", e, data_item)
+            # Call the function to take the data clean and formatted
+            try:
+                complete_row = extract_and_flatten_data(node_id, now, data_list)
+            except Exception as e:
+                logger.error("❌ Error during data plain: %s for item: %s", e, data_list)
+
+            # for data_item in data_list:
+            #     try:
+            #         flattened_rows = extract_and_flatten_data(node_id, now, data_item)
+            #         complete_row.extend(flattened_rows)
+            #     except Exception as e:
+            #         logger.error("❌ Error during data plain: %s for item: %s", e, data_item)
 
             try:
                 # Write in file just if there are valid rows
-                if all_rows:
+                if complete_row:
                     with ROTATION_LOCK:
                         current_csv_file = CSV_FILE
 
                     with open(current_csv_file, mode='a', newline='', encoding='utf-8-sig') as file:
-                        csv.writer(file).writerows(all_rows)
-                    logger.info("💾 Saved %d ítems in final format from %s to %s", len(all_rows), os.path.basename(current_csv_file), node_id)
+                        csv.writer(file).writerow(complete_row)
+                    logger.info("💾 Saved %d ítems in final format from %s to %s", len(complete_row), os.path.basename(current_csv_file), node_id)
                 else:
                     logger.warning("⚠️ Valid rows were not generated to write. Data discard for %s.", node_id)
                 CSV_WRITE_QUEUE.task_done()
@@ -338,9 +278,8 @@ def handle_upload_and_rotation(file_to_upload):
                 logger.warning("Archivo fallido mantenido para reintento: %s", os.path.basename(file_to_upload))
 
             return True
-        else:
-            logger.error("❌ Failure to create new CSV file during rotation.")
-            return False
+        logger.error("❌ Failure to create new CSV file during rotation.")
+        return False
 
     except Exception as e:
         logger.error("❌ Error during file rotation: %s", str(e))
@@ -632,3 +571,4 @@ if __name__ == "__main__":
         # Tiny lapse to detect the stop
         time.sleep(2)
 ##################################################################################################
+

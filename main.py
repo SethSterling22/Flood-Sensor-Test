@@ -17,7 +17,6 @@ import json
 import socket
 import random
 import logging
-import datetime
 import threading
 from dotenv import load_dotenv
 
@@ -49,8 +48,8 @@ CLIENT_READY = False
 SENSOR_DATA_BUFFER = [] 
 BUFFER_LOCK = threading.Lock()
 STOP_EVENT = threading.Event()
-LATITUDE = os.getenv('GPS_LAT')
-LONGITUDE = os.getenv('GPS_LON')
+LATITUDE = float(os.getenv('GPS_LAT'))
+LONGITUDE = float(os.getenv('GPS_LON'))
 STATION_ID = int(os.getenv('STATION_ID'))
 
 

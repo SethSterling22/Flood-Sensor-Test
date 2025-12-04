@@ -8,11 +8,11 @@ from the Client-Server application to Upstream-dso
 import os
 import sys
 import csv
-import json
+# import json
 import logging
 import tempfile
 import pandas as pd
-from datetime import datetime
+# from datetime import datetime
 from dotenv import load_dotenv
 from upstream.client import UpstreamClient
 
@@ -44,8 +44,8 @@ PID_FILE = "./PID/metrics_uploader.pid"
 
 
 # Register PID
-with open(PID_FILE, "w") as file:
-    file.write(str(os.getpid()))
+with open(PID_FILE, "w") as f:
+    f.write(str(os.getpid()))
 
 
 # ====== LOGGING SETUP ======
@@ -63,7 +63,7 @@ logger = logging.getLogger(__name__)
 def init_sensor_file():
     try:
         if not os.path.exists(SENSOR_FILE):
-            with open(SENSOR_FILE, "w", newline="") as file:
+            with open(SENSOR_FILE, "w", newline="", encoding='utf-8-sig') as file:
                 writer = csv.writer(file, delimiter="\t")
                 writer.writerow(["alias,variablename,postprocess,units,datatype"]) # Default fields
 
@@ -73,12 +73,12 @@ def init_sensor_file():
                 writer.writerow(["Degrees,Degrees,true,Celsius,float"])
                 writer.writerow(["Flooding,Flooding,true,boolean,integer"])
 
-            logger.info(f"✅ Created sensor file at {SENSOR_FILE}")
+            logger.info("✅ Created sensor file at %s", SENSOR_FILE)
         else:
-            logger.info(f"Sensor file exists at {SENSOR_FILE}")
+            logger.info("Sensor file exists at %s", SENSOR_FILE)
         return True
     except Exception as e:
-        logger.error(f"Failed to create sensor file: {e}")
+        logger.error("Failed to create sensor file: %s", e)
         return False
 
 
@@ -120,7 +120,7 @@ def submit_file_to_upstream(file_path):
         df = pd.read_csv(file_path)
 
         if 'Station_Id' not in df.columns:
-            logger.error(f"❌ Column 'Station_Id' not found in {file_path}")
+            logger.error("❌ Column 'Station_Id' not found in %s", file_path)
             return False
 
         # Group by Station_Id

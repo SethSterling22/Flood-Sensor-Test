@@ -11,7 +11,6 @@ import json
 import socket
 import random
 import logging
-import datetime
 import threading
 from dotenv import load_dotenv
 
@@ -90,11 +89,8 @@ def listener_job(sensor_name, func):
                     with counter_lock:
                         current_count = counter
                         counter = 0
-                    now = datetime.datetime.now()
-                    time_string = f"{now.hour}:{now.minute}:{now.second}"
                     SENSOR_DATA_BUFFER.append({
                         'Sensor': sensor_name,
-                        'Timestamp': time_string,
                         'Value': data,
                         'Station_Id': STATION_ID,
                         'Lat_deg': LATITUDE,
