@@ -14,7 +14,6 @@ information that it have in queue to send that day
 import os
 import time
 import logging
-import threading
 from gpiozero import Button
 from dotenv import load_dotenv
 
@@ -30,8 +29,7 @@ BUCKET_SIZE = float(os.getenv('BUCKET_SIZE'))  # mm per tip, adjust if needed
 rain_sensor = Button(int(os.getenv('RAINFALL_SENSOR'))) # Previous 27
 
 # === GLOBALS SETUP to track counts and timing ===
-global_count = 0
-count_lock = threading.Lock()
+count = 0
 
 # === LOGGING SETUP ===
 logger = logging.getLogger(__name__)
@@ -42,96 +40,43 @@ def bucket_tipped():
     """
     This function is called by the sensor event. It only increase the counter.
     """
-    global global_count
-    # Usar el lock para incrementar el contador de forma segura
-    with count_lock:
-        global_count += 1
-    # logger.debug(f"Tip registrado. Total: {global_count}")
-
-
-# def get_rain_data():
-#     """
-#     Counts the ammount of precipitation per minute and return the result in mm.
-#     """
-#     global global_count
-#     initial_count = global_count
-
-#     try:
-#         # Configure the event Manager of the Sensor
-#         rain_sensor.when_pressed = bucket_tipped
-
-#         # Count the total number in the 60 seconds interval
-#         current_count = global_count
-
-#         # Calculate the difference to know the ammount of rain in the previous minute
-#         minute_tips = (current_count - initial_count) * BUCKET_SIZE
-#         #logger.info(f"Logged {minute_tips} mm for the previous minute")
-
-#         # Restart "count" for the next cicle
-#         global_count = 0
-
-#         return minute_tips
-
-#     except Exception as e:
-#         logger.info("\n❌ An error has occurred with the Rain Sensor: \n\n %s", e)
-
-# if __name__ == "__main__":
-#     get_rain_data()
-
-
-
-
-def calculate_and_reset_rainfall():
-    """
-    Calcula la lluvia acumulada y resetea el contador para el siguiente minuto.
-    """
-    global global_count
-
-    # 1. Adquirir el Lock para asegurar que la lectura y el reseteo sean atómicos
-    with count_lock:
-        # Capturar el conteo del último minuto
-        minute_tips_count = global_count 
-        
-        # Reset the counter
-        global_count = 0 
-
-    # 2. Calcular la lluvia (fuera del Lock)
-    minute_rainfall_mm = minute_tips_count * BUCKET_SIZE
-
-
-    return minute_rainfall_mm
+    global count
+    count += 1
 
 
 def get_rain_data():
     """
-    Principal thread function, collect sync by time
+    Counts the ammount of precipitation per minute and return the result in mm.
     """
+    global count
+    initial_count = count
+    # logger.info("🌧️ Starting Rain Gauge monitoring...")
 
-    # Configure the sensor
-    rain_sensor.when_pressed = bucket_tipped
+    try:
+        # Configure the event Manager of the Sensor
+        rain_sensor.when_pressed = bucket_tipped
 
-    current_time_seconds = time.time()
-    seconds_until_next_minute = 60.0 - (current_time_seconds % 60.0)
-    time.sleep(seconds_until_next_minute)
+        # Count the total number in the 60 seconds interval
+        current_count = count
 
-    while True:
-        try:
-            # Exectute the data collection
-            print(calculate_and_reset_rainfall())
+        #time.sleep(60)
 
-            # Wait a minute to reset
-            time.sleep(60)
+        # Calculate the difference to know the ammount of rain in the previous minute
+        minute_tips = (current_count - initial_count) * BUCKET_SIZE
+        #logger.info(f"Logged {minute_tips} mm for the previous minute")
 
-        except KeyboardInterrupt:
-            logger.info("Stopped by user.")
-            break
-        except Exception as e:
-            logger.error("❌ Thread error in collection %s", e)
-            time.sleep(5)
+        # Restart "count" for the next cicle
+        count = 0
+        
+        return minute_tips
 
+    except Exception as e:
+        logger.info("\n❌ An error has occurred with the Rain Sensor: \n\n %s", e)
 
 if __name__ == "__main__":
     get_rain_data()
+
+
 
 ########################### Old version ###########################
 # current_hour_str = None
@@ -173,5 +118,3 @@ if __name__ == "__main__":
 #     t = Timer(60, log_minute_data)
 #     t.start()
 ########################### Old version ###########################
-
-

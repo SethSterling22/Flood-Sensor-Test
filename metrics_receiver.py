@@ -135,8 +135,8 @@ def extract_and_flatten_data(node_id, timestamp, data_list):
 
         # 3. Filter by Sensor Name and assign the value to a variable
         if sensor_name == "Rain Gauge":
-            print("DEBUG VALUE")
-            print(raw_value)
+            logger.info("DEBUG VALUE")
+            logger.info(raw_value)
             precipitation = raw_value
 
         elif sensor_name == "Temperature and Humidity" and isinstance(raw_value, (list, tuple)) and len(raw_value) >= 2:

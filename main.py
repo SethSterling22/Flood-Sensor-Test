@@ -96,15 +96,14 @@ def listener_job(sensor_name, func):
                     })
                     logger.debug("Buffered %s data: %.2f", sensor_name, data)
 
-                # Just sleep the other sensors, Rain Gauge must be calculate contantly
-                if sensor_name != "Rain Gauge":
-                    # Wait for 5 seconds (the collection interval)
-                    elapsed = time.time() - start_time
-                    sleep_time = max(0, 55.0 - elapsed)
 
-                    if STOP_EVENT.wait(sleep_time):
-                        # if STOP_EVENT break
-                        break
+                # Wait for 5 seconds (the collection interval)
+                elapsed = time.time() - start_time
+                sleep_time = max(0, 55.0 - elapsed)
+
+                if STOP_EVENT.wait(sleep_time):
+                    # if STOP_EVENT break
+                    break
 
         except Exception as e:
             logger.error("%s thread error: %s", sensor_name, str(e))
