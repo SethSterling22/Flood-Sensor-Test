@@ -128,7 +128,9 @@ def run_accumulation_test(duration_seconds=60):
     logger.info("⏱️ Fin del periodo de acumulación de %d segundos." % duration_seconds)
     
     # Llamar a la función para obtener el resultado y resetear el contador
-    final_result_mm = get_rain_data()
+    raw_value = get_rain_data()
+    print(f"Tipo devuelto: {type(raw_value)}, Valor devuelto: {raw_value}")
+    final_result_mm = raw_value
     
     # 3. Mostrar el resultado y verificar el reseteo
     logger.info("-" * 40)
