@@ -45,35 +45,8 @@ def bucket_tipped():
     global count
     count += 1
 
+# Configure the event Manager of the Sensor
 rain_sensor.when_pressed = bucket_tipped
-
-# def get_rain_data():
-#     """
-#     Counts the ammount of precipitation per minute and return the result in mm.
-#     """
-#     global count
-#     initial_count = count
-
-#     try:
-#         # Configure the event Manager of the Sensor
-#         rain_sensor.when_pressed = bucket_tipped
-
-#         # Count the total number in the 60 seconds interval
-#         current_count = count
-
-#         #time.sleep(60)
-
-#         # Calculate the difference to know the ammount of rain in the previous minute
-#         minute_tips = (current_count - initial_count) * BUCKET_SIZE
-#         #logger.info(f"Logged {minute_tips} mm for the previous minute")
-
-#         # Restart "count" for the next cicle
-#         count = 0
-        
-#         return minute_tips
-
-#     except Exception as e:
-#         logger.info("\n❌ An error has occurred with the Rain Sensor: \n\n %s", e)
 
 
 def get_rain_data():
@@ -81,18 +54,14 @@ def get_rain_data():
     Counts the ammount of precipitation per minute and return the result in mm.
     """
     global count
-    
-    # 1. El conteo inicial es 0 (porque se reseteó al final del ciclo anterior)
-    #    y el conteo actual es el acumulado en los 60 segundos que esperó listener_job.
+    # Count the total number in the 60 seconds interval
     current_count = count
 
     try:
-        # El cálculo del "conteo inicial" no es necesario si el contador se resetea a 0.
-        # minute_tips = (current_count - initial_count) * BUCKET_SIZE 
-        # Si count se reseteó, el valor es simplemente:
+        # Calculate the count by the bucket size to get the volume
         minute_tips = current_count * BUCKET_SIZE 
 
-        # 2. Reiniciar "count" para el siguiente ciclo
+        # Restart the counter
         count = 0
         
         return minute_tips
@@ -104,47 +73,31 @@ def get_rain_data():
 
 def run_accumulation_test(duration_seconds=60):
     """
-    Simula el ciclo de acumulación de 60 segundos del listener_job,
-    esperando el tiempo y luego llamando a la función de cálculo.
+    Simulate the job for a 60 seconds collection
     """
     global count
-    
-    logger.info("--- 🧪 PRUEBA DE ACUMULACIÓN DE %d SEGUNDOS INICIADA ---" % duration_seconds)
-    logger.info("💧 Contador de lluvia activo. Agita/activa el sensor ahora.")
-    logger.info("   Conteo inicial: %d" % count)
-    
+
+    logger.info("--- 🧪 ACCUMULATION TEST %d SECONDS ---" % duration_seconds)
+    logger.info("💧 Raingauge Counter started")
+    logger.info("   Initial counter: %d" % count)
+
     start_time = time.time()
-    
-    # 1. Espera activa para simular el tiempo de acumulación del listener_job
+
     while time.time() - start_time < duration_seconds:
-        # Aquí el sistema simplemente espera, y las interrupciones del sensor
-        # llaman a bucket_tipped en segundo plano.
         time.sleep(1) 
         
-    # 2. Finalizada la espera, se llama a get_rain_data()
-    
+    # Call get_rain_data()
     total_tips_accumulated = count
-    
-    logger.info("⏱️ Fin del periodo de acumulación de %d segundos." % duration_seconds)
-    
-    # Llamar a la función para obtener el resultado y resetear el contador
-    raw_value = get_rain_data()
-    print(f"Tipo devuelto: {type(raw_value)}, Valor devuelto: {raw_value}")
-    final_result_mm = raw_value
-    
-    # 3. Mostrar el resultado y verificar el reseteo
+    logger.info("⏱️ End of the period of  %d seconds." % duration_seconds)
+
+    final_result_mm = get_rain_data()
+    # Show results
     logger.info("-" * 40)
-    logger.info("✅ Resultado del Ciclo de Acumulación:")
-    logger.info("   Total de Pulsaciones (Tips): %d" % total_tips_accumulated)
-    logger.info("   Precipitación calculada: %.3f mm" % final_result_mm)
-    logger.info("   Contador global después del reseteo: %d" % count)
+    logger.info("✅ Results of the collection cycle:")
+    logger.info("   Total Counts (Tips): %d" % total_tips_accumulated)
+    logger.info("   Precipitation accumulated: %.3f mm" % final_result_mm)
+    logger.info("   Global counter after reset: %d" % count)
     logger.info("-" * 40)
-    
-    # --- PRUEBA DE SEGUNDO CICLO (Opcional, verifica que el contador inicia en cero) ---
-    logger.info("Esperando 5 segundos para verificar que el contador empieza de cero...")
-    time.sleep(5)
-    logger.info("Conteo después de 5s del reseteo (debe ser 0 si no hubo lluvia): %d" % count)
-    
 
 if __name__ == "__main__":
     # Ejecuta el ciclo de prueba de 60 segundos
