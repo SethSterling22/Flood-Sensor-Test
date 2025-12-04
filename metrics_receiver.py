@@ -121,13 +121,13 @@ def extract_and_flatten_data(node_id, timestamp, data_list):
     for data_item in data_list:
 
         # 2. Buffer data extraction and metadata extraction from "data_item"
-        sensor_name = data_item.get("Sensor") or data_item.get("sensor")
-        raw_value = data_item.get("Value") or data_item.get("value")
+        sensor_name = data_item.get("Sensor")
+        raw_value = data_item.get("Value")
 
         # Extract metadata
-        station_id = data_item.get("Station_Id") or data_item.get("station_id")
-        lat_deg = data_item.get("Lat_deg") or data_item.get("lat_deg")
-        lon_deg = data_item.get("Lon_deg") or data_item.get("lon_deg")
+        station_id = data_item.get("Station_Id")
+        lat_deg = data_item.get("Lat_deg")
+        lon_deg = data_item.get("Lon_deg")
 
         if sensor_name is None:
             logger.warning("⚠️ Item del buffer incompleto, saltando: %s", data_item)

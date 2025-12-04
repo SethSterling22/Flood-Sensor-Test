@@ -86,6 +86,7 @@ def listener_job(sensor_name, func):
             if CLIENT_READY:
                 # Call to the function
                 data = func()
+                # Packet Structure
                 with BUFFER_LOCK:
                     SENSOR_DATA_BUFFER.append({
                         'Sensor': sensor_name,
