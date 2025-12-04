@@ -82,7 +82,7 @@ def setup_csv(filename):
                 writer.writerow(["Precipitation,Precipitation,False,mm,float"])
                 writer.writerow(["Temperature,Temperature,False,Celsius,float"])
                 writer.writerow(["Humidity,Humidity,False,Percentage,float"])
-                writer.writerow(["Flooding,Flooding,False,boolean,integer"])
+                writer.writerow(["Flooding,Flooding,False,Boolean,integer"])
 
             logger.info("✅ Created sensor file at %s", SENSOR_FILE)
         else:
@@ -135,8 +135,6 @@ def extract_and_flatten_data(node_id, timestamp, data_list):
 
         # 3. Filter by Sensor Name and assign the value to a variable
         if sensor_name == "Rain Gauge":
-            logger.info("DEBUG VALUE")
-            logger.info(raw_value)
             precipitation = raw_value
 
         elif sensor_name == "Temperature and Humidity" and isinstance(raw_value, (list, tuple)) and len(raw_value) >= 2:

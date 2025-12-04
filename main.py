@@ -100,7 +100,7 @@ def listener_job(sensor_name, func):
 
                 # Wait for 5 seconds (the collection interval)
                 elapsed = time.time() - start_time
-                sleep_time = max(0, 55.0 - elapsed)
+                sleep_time = max(0, 58.0 - elapsed)
 
                 if STOP_EVENT.wait(sleep_time):
                     # if STOP_EVENT break

@@ -39,15 +39,6 @@ CSV_DIR = os.path.join(LOG_DIR,"Water_data/")
 SENSOR_FILE = os.path.join(CSV_DIR, "metrics_template.csv")
 
 
-# === LOGGING ===
-PID_FILE = "./PID/metrics_uploader.pid"
-
-
-# Register PID
-with open(PID_FILE, "w") as f:
-    f.write(str(os.getpid()))
-
-
 # ====== LOGGING SETUP ======
 logging.basicConfig(
     level=logging.INFO,
@@ -60,6 +51,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+
 def init_sensor_file():
     try:
         if not os.path.exists(SENSOR_FILE):
@@ -69,9 +61,10 @@ def init_sensor_file():
 
                 # Fields to upload
                 # writer.writerow(["Metrics,Metrics,true,string,float"])
-                writer.writerow(["Precipitation,Precipitation,true,mm,float"])
-                writer.writerow(["Degrees,Degrees,true,Celsius,float"])
-                writer.writerow(["Flooding,Flooding,true,boolean,integer"])
+                writer.writerow(["Precipitation,Precipitation,False,mm,float"])
+                writer.writerow(["Temperature,Temperature,False,Celsius,float"])
+                writer.writerow(["Humidity,Humidity,False,Percentage,float"])
+                writer.writerow(["Flooding,Flooding,False,Boolean,integer"])
 
             logger.info("✅ Created sensor file at %s", SENSOR_FILE)
         else:
