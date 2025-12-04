@@ -14,6 +14,7 @@ information that it have in queue to send that day
 import os
 import time
 import logging
+import threading
 from gpiozero import Button
 from dotenv import load_dotenv
 
