@@ -152,6 +152,7 @@ def get_next_hourly_filename():
     return next_hour.strftime("metrics_data_%Y%m%d_%H0000.csv")
 
 
+# TO-DO
 def job_submission():
     """
     This function call USGS to get streamflow data to
@@ -208,6 +209,7 @@ def job_submission():
             }
 
             logger.info("Setting Model Parameters")
+            # Submmit the job
             params_result = set_model_parameters(problem_statement, task, sub_task, model_config, auth_token)
 
             if params_result:

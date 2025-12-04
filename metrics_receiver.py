@@ -40,8 +40,10 @@ CLIENT_SEND_READY_FLAGS = {}
 INDEX_LOCK = threading.Lock() # For the clients to start index
 STOP_EVENT = threading.Event()
 CSV_WRITE_QUEUE = queue.Queue() # Thread for the CSV writing while handling other data
+LAST_JOB_SUBMISSION_TIME = None
 ROTATION_LOCK = threading.Lock()
 CLIENT_FLAG_LOCK = threading.Lock()
+JOB_SUBMISSION_LOCK = threading.Lock()
 
 
 # ====== SAVE FILES PATH ======
@@ -148,11 +150,30 @@ def extract_and_flatten_data(node_id, timestamp, data_list):
         elif sensor_name == "Flood Sensor":
             flooding = raw_value
 
-            # 4. Check flooding and activate the job subission thread
-            if flooding == 1:
-                logger.info("🚨 Flood detected! Submitting job for processing.")
-                # Call to the Job submission
-                job_submission_thread()
+            # 4. Check flooding and activate the job subission thread - UNCOMMENT TO RUN, FOR THE FUTURE (TO-DO)
+            # if flooding in (1, 1.0):
+            #     logger.info("🚨 Flood detected! Submitting job for processing.")
+            #     global LAST_JOB_SUBMISSION_TIME
+
+            #     # Bloquea la sección para garantizar que solo un hilo compruebe y actualice a la vez
+            #     with JOB_SUBMISSION_LOCK:
+            #         now = datetime.datetime.now()
+
+            #         # Check if an hour already happened (3600 seconds)
+            #         if LAST_JOB_SUBMISSION_TIME is None or (now - LAST_JOB_SUBMISSION_TIME) >= datetime.timedelta(hours=1):
+
+            #             logger.info("🚨 Flood detected! Submitting job for processing.")
+            #             # Update global variable 
+            #             LAST_JOB_SUBMISSION_TIME = now
+
+            #             # Call to the Job submission
+            #             job_submission_thread()
+
+            #         else:
+            #             # If not enough time has passed, ignore it.
+            #             elapsed_time = now - LAST_JOB_SUBMISSION_TIME
+            #             time_remaining = datetime.timedelta(hours=1) - elapsed_time
+
         else:
             # Sensor doesn't have a column, ignore
             logger.warning("⚠️ Unmapped sensor (%s) ignored in normalization to fixed CSV format.", sensor_name)
