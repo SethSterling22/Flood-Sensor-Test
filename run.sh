@@ -3,7 +3,9 @@
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 # ┃  Flood Sensor Daemon Script                 ┃
 # ┃  Runs main.py, rain_gauge.py,               ┃
-# ┃  flood_sensor and metrics_receiver.py       ┃
+# ┃  flood_sensor, metrics_receiver.py          ┃
+# ┃  temp_and_humid_sensor.py and               ┃
+# ┃  metrics_uploader.py                        ┃
 # ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 # Should use UTF-8 for the icons and special characters
 
@@ -24,7 +26,7 @@ LOG_RECEIVER="$SCRIPT_DIR/Logs/metrics_receiver.log"
 
 
 # === Check required files exist ===
-for file in main.py rain_gauge.py flood_sensor.py metrics_receiver.py Env/.env Env/.env.public Env/.env.config; do
+for file in main.py Sensors/rain_gauge.py Sensors/flood_sensor.py Sensors/temp_and_humid_sensor.py metrics_receiver.py metrics_uploader.py Env/.env Env/.env.public Env/.env.config; do
     if [ ! -f "$SCRIPT_DIR/$file" ]; then
         echo "❌ Error: $file not found in $SCRIPT_DIR"
         exit 1
