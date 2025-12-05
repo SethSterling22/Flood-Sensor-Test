@@ -155,7 +155,7 @@ def extract_and_flatten_data(node_id, timestamp, data_list):
             #     logger.info("🚨 Flood detected! Submitting job for processing.")
             #     global LAST_JOB_SUBMISSION_TIME
 
-            #     # Bloquea la sección para garantizar que solo un hilo compruebe y actualice a la vez
+            #     # Block the section to grant the thread to check and update
             #     with JOB_SUBMISSION_LOCK:
             #         now = datetime.datetime.now()
 
@@ -194,7 +194,7 @@ def csv_writer_job():
 
     last_upload = time.time()
     upload_interval = 3600 # 1 hour
-    #upload_interval = 600 # 10 minutes to debbug
+    # upload_interval = 600 # 10 minutes to debbug
     global CSV_FILE
 
     logger.info("📝 CSV Writer thread started.")
@@ -247,7 +247,7 @@ def csv_writer_job():
                 logger.info("🔄 Rotation hour: Trying to start uploading of %s", os.path.basename(file_to_upload))
 
                 try:
-                    # Call to uploader IMPORTANT, previous file will be deleted?
+                    # Call to uploader
                     uploader_metrics(file_to_upload) # <-- Here
                     last_upload = time.time()
 

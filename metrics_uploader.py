@@ -86,7 +86,7 @@ def init_sensor_file():
 
 
 
-############################### GLOBAL VARIABLES INITIALIZATION ##################################
+######################### CREATE UPSTREAM SESION AND UPLOAD THE DATA #############################
 ##################################################################################################
 def submit_file_to_upstream(file_path):
     """
@@ -158,6 +158,7 @@ def run_uploader(file_to_upload):
     Principal function, called by metrics_receiver.py
     Process, upload and delete the RAW file if the upload is sucessful
     """
+
     logger.info("📡 Starting Metrics uploader...")
     created_template = init_sensor_file()
     if created_template:
@@ -170,7 +171,7 @@ def run_uploader(file_to_upload):
         success = submit_file_to_upstream(file_to_upload)
         if success:
             try:
-                # os.remove(file_to_upload) # File DELETE
+                os.remove(file_to_upload) # File DELETE
                 logger.info("🧹 Removed uploaded file %s", file_to_upload)
             except Exception as e:
                 logger.error("❌ Failed to remove uploaded file: %s", e)
