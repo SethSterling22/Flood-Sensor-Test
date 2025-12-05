@@ -32,7 +32,7 @@ os.makedirs(LOG_DIR, exist_ok=True)
 RECEIVER_HOST = "127.0.0.1" if len(sys.argv) > 1 else os.getenv('RECEIVER_HOST')
 RECEIVER_PORT = int(os.getenv("RECEIVER_PORT", "4040"))
 NODE_ID = "NODE_Dummy1"  # Must start with "NODE_"
-# NODE_ID = f"NODE_{os.getenv('NODE_PREFIX', 'default')}"
+# NODE_ID = f"NODE_{os.getenv('STATION_NAME', 'default')}"
 
 
 # ====== LOGGING SETUP ======
