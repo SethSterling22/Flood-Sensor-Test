@@ -101,6 +101,10 @@ The file `.env.config` in the ./Env directory must be configured independently b
 - **Sensor Logic**:
   - Work like a button: give a signal when is pressed 
 
+- **Temperature and Humidity Pin**: GPIO pin 4
+- **Sensor Logic**:
+  - Return two values, temperature and humidity
+
 ### Model Configuration
 
 The application is pre-configured with:
