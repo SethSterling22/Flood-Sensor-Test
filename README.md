@@ -46,7 +46,17 @@ This application monitors a physical flood sensor connected to a Raspberry Pi an
    ```bash
    python -m venv --system-site-packages venv
    source venv/bin/activate
+   ```
+
+   - Packages installation:
+   ```bash
    pip3 install -r Setup/requirements.txt
+   ```
+
+   - Or:
+   ```bash
+   which python
+   sudo path/to/python3 -m pip install -r Setup/requirements.txt 
    ```
 
 3. **Create environment configuration:**

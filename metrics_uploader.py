@@ -24,6 +24,7 @@ from upstream.client import UpstreamClient
 # === ENVIRONMENT  VARIABLES ===
 load_dotenv("./Env/.env")         # Tapis credentials
 load_dotenv("./Env/.env.public")  # Public env variables
+load_dotenv("./Env/.env.config")  # Public env variables
 
 
 # === CONFIGURATION ===
