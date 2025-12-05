@@ -183,7 +183,8 @@ def client():
 
                         message_bytes = s.recv(14)
                         if not message_bytes:
-                            continue
+                            logger.error("🚫 Server closed the connection while waiting for signal.")
+                            break
                         message = message_bytes.decode().strip()
 
                         # If server is ready to index:

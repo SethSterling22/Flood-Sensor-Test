@@ -42,7 +42,7 @@ load_dotenv("./Env/.env.public")
 # ====== CONNETION SETTINGS ======
 RECEIVER_HOST = "127.0.0.1" if len(sys.argv) > 1 else os.getenv('RECEIVER_HOST')
 RECEIVER_PORT = int(os.getenv("RECEIVER_PORT", "4040"))
-NODE_ID = f"NODE_{os.getenv('NODE_PREFIX', 'default')}" # Must start with "NODE_"
+NODE_ID = f"NODE_{os.getenv('STATION_NAME', 'default')}" # Must start with "NODE_"
 
 
 # ====== GLOBAL VARIABLES ======
@@ -175,7 +175,8 @@ def client():
 
                         message_bytes = s.recv(14)
                         if not message_bytes:
-                            continue
+                            logger.error("🚫 Server closed the connection while waiting for signal.")
+                            break
                         message = message_bytes.decode().strip()
 
                         # If server is ready to index:
