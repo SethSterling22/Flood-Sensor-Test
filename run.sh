@@ -18,11 +18,13 @@ VENV_PYTHON="$SCRIPT_DIR/venv/bin/python" # Set venv Python path
 PID_MAIN="$SCRIPT_DIR/PID/main.pid"
 # PID_RAINGAUGE="$SCRIPT_DIR/PID/rain_gauge.pid"
 PID_RECEIVER="$SCRIPT_DIR/PID/metrics_receiver.pid" # The receiver will log what it sends
+PID_UPLOADER="$SCRIPT_DIR/PID/metrics_uploader.pid"
 
 # == Log files ==
 LOG_MAIN="$SCRIPT_DIR/Logs/main.log"
 # LOG_RAINGAUGE="$SCRIPT_DIR/Logs/rain_gauge.log"
 LOG_RECEIVER="$SCRIPT_DIR/Logs/metrics_receiver.log"
+LOG_UPLOADER="$SCRIPT_DIR/Logs/metrics_uploader.log"
 
 
 # === Check required files exist ===
@@ -82,7 +84,7 @@ start_component() {
 
     echo -n "🚀 Starting $script_name... "
     if [ "$use_sudo" = "true" ]; then
-        # which python !!!
+        # which python
         nohup sudo $VENV_PYTHON "$SCRIPT_DIR/$script_name"  $extra_args >> "$log_file" 2>&1 &
     else
         
@@ -96,6 +98,7 @@ start_component() {
 start_sensor() {
     echo "🚀 Starting flood sensor components..."
     local mode="$1" # 'Server', 'Node', 'ExitNode'
+    local file_path="$2"
     
     # Check if any component is already running
     case "$mode" in
@@ -111,6 +114,10 @@ start_sensor() {
             echo "⚙️ Mode: ExitNode starting main.py and metrics_receiver.py ..."
             start_component "main.py" "$PID_MAIN" "$LOG_MAIN" "false" "ExitNode"
             start_component "metrics_receiver.py" "$PID_RECEIVER" "$LOG_RECEIVER" "false"
+            ;;
+        Uploader)
+            echo "⚙️ Mode: Uploader starting metrics_uploader.py ..."
+            start_component "metrics_uploader.py" "$PID_UPLOADER" "$LOG_UPLOADER" "false" "$file_path"
             ;;
         *)
             echo "⛔ ERROR: Invalid mode for start command: '$mode'"
@@ -184,9 +191,18 @@ case "$1" in
             Server|Node|ExitNode)
                 start_sensor "$2"
                 ;;
+            Uploader)
+                if [ -z "$3" ]; then
+                    echo "⛔ ERROR: Missing file path for Uploader mode."
+                    echo "Usage: $0 start Uploader /path/to/file.csv"
+                    exit 1
+                fi
+                # Call start_sensor with the extra argument ($3)
+                start_sensor "$2" "$3" 
+                ;;
             "")
                 echo "⛔ ERROR: Missing start mode."
-                echo "Usage: $0 start { Server | Node | ExitNode }"
+                echo "Usage: $0 start { Server | Node | ExitNode | Uploader }"
                 exit 1
                 ;;
             *)
@@ -200,13 +216,14 @@ case "$1" in
         ;;
     *)
         # --help general usage
-        echo "Usage: $0 {start | stop | restart | status}"
+        echo "Usage: $0 { start | stop | restart | status }"
         echo ""
         echo "Commands:"
-        echo "  start { Server | Node | ExitNode } - Start components based on role."
+        echo "  start { Server | Node | ExitNode | Uploader } - Start components based on role."
         echo "    Server: metrics_receiver.py"
         echo "    Node: main.py"
         echo "    ExitNode: main.py and metrics_receiver.py"
+        echo "    Uploader: metrics_uploader.py"
         echo "  stop    - Stop all flood sensor components"
         echo "  restart - Restart all flood sensor components"
         echo "  status  - Show running status"

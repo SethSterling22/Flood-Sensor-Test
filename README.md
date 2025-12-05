@@ -10,6 +10,9 @@ This application monitors a physical flood sensor connected to a Raspberry Pi an
 
 - **Real-time Flood Detection**: Monitors GPIO pin for physical flood sensor input
 - **Real-time Rainfall Measurement**: Calculates the volume of rainfall in a time interval
+- **Real-time Temperature and Humidty Measurement**: Provides the temperature in Celsius or Farenheit degrees and Humidity percentage
+- **Client-Server Communication**: A Network of Sensors can be deployed in different locations and the data will be synchronized and storage
+- **Upload Weather Data to Upstream**: The data collected by the sensors is sent to: https://upstream.pods.tacc.tapis.io
 - **USGS Integration**: Fetches live streamflow data from USGS water services
 - **MINT API Integration**: Automatically configures and submits flood models
 - **Continuous Monitoring**: Runs as a daemon with configurable check intervals
@@ -64,10 +67,28 @@ This application monitors a physical flood sensor connected to a Raspberry Pi an
 
 Create a `.env` file with the following variables for MINT:
 
-|  Variable  | Description | Required |
-|------------|-------------|----------|
-|  `userid`  | Your Tapis username | Yes |
-| `password` | Your Tapis password | Yes |
+|  Variable  |     Description     | Required |
+|------------|---------------------|----------|
+|  `userid`  | Your Tapis username |    Yes   |
+| `password` | Your Tapis password |    Yes   |
+
+### Environment Configuration
+
+The file `.env.config` in the ./Env directory must be configured independently by each client/node. An example of the variables and their values ​​is provided, but these must be fully configured.
+
+|       Variable        |                                        Description                                         | Required |
+|-----------------------|--------------------------------------------------------------------------------------------|----------|
+| `FLOOD_SENSOR`        | GPIO pin number assigned to the flood sensor	                                             |    Yes   |
+| `RAINFALL_SENSOR`     | GPIO pin number assigned to the rain sensor (rain gauge)	                                 |    Yes   |
+| `BUCKET_SIZE`         | Size of the rain gauge scoop or bucket (volume of precipitation per turn, typically in mm) |    Yes   |
+| `TEMP_&_HUMID_SENSOR` | GPIO Pin Number for the temperature and humidity sensor	                                 |    Yes   |
+| `RECEIVER_HOST`       | IP address or hostname of the receiving server (metrics_receiver.py)	                     |    Yes   |
+| `RECEIVER_PORT`       | Network port on which the receiving server is listening	                                 |    Yes   |
+| `NODE_ID`             | Unique identifier assigned to this device or sensor node	                                 |    Yes   |
+| `CAMPAIGN_ID`         | Campaign ID to which the station belongs within the Tapis system                           |    Yes   |
+| `STATION_ID`          | Station ID (this node) within the specific Campaign                                        |    Yes   |
+| `GPS_LAT`             | Latitude of the physical location of the node                                              |    Yes   |
+| `GPS_LON`             | Longitude of the physical location of the node                                             |    Yes   |
 
 ### Hardware Configuration
 
@@ -97,7 +118,8 @@ and the different dependencies.
 
 #### Method 1: Direct Execution
 
-To get the Python Path
+## Client/Node:
+Get the Python Path
 ```bash
 which python 
 ``` 
@@ -112,12 +134,34 @@ sudo path/to/python3 main.py
 sudo path/to/python3 main.py {any_arg}
 ```
 
+## Server:
+Get the Python Path
+```bash
+which python 
+``` 
+using the previous path
+```bash
+# Will be waiting for a Client/Node connection
+sudo path/to/python3 metrics_receiver.py
+```
+
+## Uploader:
+Get the Python Path
+```bash
+which python 
+``` 
+using the previous path
+```bash
+# Will search and upload the given file to Upstream (files must be in ./Logs/Water_data)
+sudo path/to/python3 metrics_uploader.py {file_path}
+```
+
 
 #### Method 2: Daemon Mode
 
 **Start the daemon:**
 ```bash
-sudo ./run.sh start  { Server | Node  | ExitNode }
+sudo ./run.sh start  { Server | Node  | ExitNode | Uploader }
 ```
 
 **Check status:**
@@ -135,9 +179,9 @@ sudo ./run.sh stop
 sudo ./run.sh restart
 ```
 
-## How It Works !!! Must be reviewed
+## How It Works:
 
-1. **Sensor Monitoring**: Continuously monitors GPIO pin 13 for flood sensor input
+1. **Sensor Monitoring**: Continuously monitors different GPIO pins for the sensors input
 
 2. **Threshold Check**: When sensor detects water (LOW signal):
    - Fetches current streamflow data from USGS
@@ -148,9 +192,10 @@ sudo ./run.sh restart
    - Authenticates with Tapis API
    - Configures flood model parameters
    - Submits model execution request to MINT
+
 4. **Logging**: All activities are logged with timestamps
 
-5. **Wait Cycle**: Sleeps for 6 minutes (360 seconds) between checks
+5. **Life Cycle**: Save data from sensors each minute, to be uploaded each hour.
 
 
 ## Logging
