@@ -25,9 +25,8 @@ else
 fi
 
 # Determine the absolute project path
-SCRIPT_DIR=$(dirname "$(readlink -f "$0")")/..
-PROJECT_DIR_PATH="$SCRIPT_DIR"
-
+SCRIPT_LOCATION=$(dirname "$(readlink -f "$0")")
+PROJECT_DIR_PATH=$(readlink -f "$SCRIPT_LOCATION/..")
 
 # ----------------------------------------------------
 # 1. Permissions Check (Requires root/sudo)

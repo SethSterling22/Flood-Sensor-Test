@@ -1,5 +1,5 @@
 [Unit]
-Description=Flood Sensor Monitoring Service
+Description=Flood Sensor Monitoring Service Client
 After=network.target
 
 [Service]
