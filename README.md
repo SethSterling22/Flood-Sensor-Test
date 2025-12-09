@@ -302,23 +302,25 @@ Flood-Sensor/
 ### Log Analysis
 
 Check the log file for detailed error information:
+
+#### Server:
 ```bash
 tail -f ./Logs/metrics_receiver.log
+```
+
+#### Client/Node:
+```bash
+tail -f ./Logs/main.log
 ```
 
 ## Development
 
 ### Adding New Features
 
-1. Modify sensor pin in `./Env/.env.config`:
-   ```python
-   # Change to your desired pin
-   FLOOD_SENSOR = 13
-   RAINFALL_SENSOR = 6
-   TEMP_&_HUMID_SENSOR = 4
-   ```
+1. Modify streamflow threshold logic in the main loop
 
-3. Modify streamflow threshold logic in the main loop
+2. Adapt the functionality to work with Telemetry Radio also
+* [Telemetry Radio](https://docs.px4.io/main/en/telemetry/holybro_sik_radio "Telemetry Radio Link")
 
 ### Testing
 
