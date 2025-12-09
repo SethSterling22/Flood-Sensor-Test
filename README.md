@@ -31,7 +31,7 @@ This application monitors a physical flood sensor connected to a Raspberry Pi an
 
 ### Software Requirements
 
-- Python 3.6 or higher
+- Python 3.8 or higher
 - Required Python packages (see Installation section)
 
 ## Installation
@@ -54,6 +54,7 @@ This application monitors a physical flood sensor connected to a Raspberry Pi an
    ```
 
    - Or:
+
    ```bash
    which python
    sudo path/to/python3 -m pip install -r Setup/requirements.txt 
@@ -71,11 +72,11 @@ This application monitors a physical flood sensor connected to a Raspberry Pi an
    chmod +x run.sh
    ```
 
-## Configuration
+## Configuration IMPORTANT
 
 ### Environment Variables
 
-Create a `.env` file with the following variables for MINT:
+Create a `.env` file with the following variables for Tapis:
 
 |  Variable  |     Description     | Required |
 |------------|---------------------|----------|
@@ -99,6 +100,8 @@ The file `.env.config` in the ./Env directory must be configured independently b
 | `STATION_ID`          | Station ID (this node) within the specific Campaign                                        |    Yes   |
 | `GPS_LAT`             | Latitude of the physical location of the node                                              |    Yes   |
 | `GPS_LON`             | Longitude of the physical location of the node                                             |    Yes   |
+
+All variables must be configured before running the program to ensure the correct functioning of the system, regardless of whether it is executed in Server or Client/Node mode.
 
 ### Hardware Configuration
 
