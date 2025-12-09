@@ -6,6 +6,11 @@ A Raspberry Pi-based flood monitoring system that integrates with USGS streamflo
 
 This application monitors a physical flood sensor connected to a Raspberry Pi and automatically triggers flood modeling when water levels exceed predefined thresholds. It fetches real-time streamflow data from USGS and submits flood prediction models through the MINT platform.
 
+### More Information:
+
+- [DeepWiki](https://deepwiki.com/SethSterling22/Flood-Sensor-Test "DeepWiki Link")
+
+
 ## Features
 
 - **Real-time Flood Detection**: Monitors GPIO pin for physical flood sensor input
@@ -90,12 +95,12 @@ The file `.env.config` in the ./Env directory must be configured independently b
 |       Variable        |                                        Description                                         | Required |
 |-----------------------|--------------------------------------------------------------------------------------------|----------|
 | `FLOOD_SENSOR`        | GPIO pin number assigned to the flood sensor	                                             |    Yes   |
-| `RAINFALL_SENSOR`     | GPIO pin number assigned to the rain sensor (rain gauge)	                                 |    Yes   |
+| `RAINFALL_SENSOR`     | GPIO pin number assigned to the rain sensor (rain gauge)                                   |    Yes   |
 | `BUCKET_SIZE`         | Size of the rain gauge scoop or bucket (volume of precipitation per turn, typically in mm) |    Yes   |
-| `TEMP_&_HUMID_SENSOR` | GPIO Pin Number for the temperature and humidity sensor	                                 |    Yes   |
+| `TEMP_&_HUMID_SENSOR` | GPIO Pin Number for the temperature and humidity sensor                                    |    Yes   |
 | `RECEIVER_HOST`       | IP address or hostname of the receiving server (metrics_receiver.py)	                     |    Yes   |
-| `RECEIVER_PORT`       | Network port on which the receiving server is listening	                                 |    Yes   |
-| `NODE_ID`             | Unique identifier assigned to this device or sensor node	                                 |    Yes   |
+| `RECEIVER_PORT`       | Network port on which the receiving server is listening                                    |    Yes   |
+| `NODE_ID`             | Unique identifier assigned to this device or sensor node                                   |    Yes   |
 | `CAMPAIGN_ID`         | Campaign ID to which the station belongs within the Tapis system                           |    Yes   |
 | `STATION_ID`          | Station ID (this node) within the specific Campaign                                        |    Yes   |
 | `GPS_LAT`             | Latitude of the physical location of the node                                              |    Yes   |
@@ -117,6 +122,8 @@ All variables must be configured before running the program to ensure the correc
 - **Temperature and Humidity Pin**: GPIO pin 4
 - **Sensor Logic**:
   - Return two values, temperature and humidity
+
+![RaspberryPi GPIO Diagram](./Setup/Img/RaspberryGPIO.png "RaspberryPi GPIO Diagram")
 
 ### Model Configuration
 
