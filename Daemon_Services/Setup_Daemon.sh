@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # Service file name
-DAEMON_DIR="Daemon"
+DAEMON_DIR="Daemon_Services"
 DEST_PATH="/etc/systemd/system/"
 
 # Check if the script was called with the required argument
 if [ -z "$1" ]; then
     echo "❌ Error: Missing required argument."
-    echo "Usage: sudo ./install_service.sh [ Server | Client ]"
+    echo "Usage: sudo ./Setup_Daemon.sh [ Server | Node ]"
     exit 1
 fi
 
@@ -16,17 +16,18 @@ MODE=$1
 # Set the source and destination service names based on the argument
 if [ "$MODE" == "Server" ]; then
     SERVICE_FILE="start-server.service"
-elif [ "$MODE" == "Client" ]; then
+elif [ "$MODE" == "Node" ]; then
     SERVICE_FILE="start-client.service"
 else
     echo "❌ Error: Invalid argument '$MODE'."
-    echo "Usage: sudo ./install_service.sh [Server | Client]"
+    echo "Usage: sudo ./Setup_Daemon.sh [ Server | Node ]"
     exit 1
 fi
 
 # Determine the absolute project path
-SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
+SCRIPT_DIR=$(dirname "$(readlink -f "$0")")/..
 PROJECT_DIR_PATH="$SCRIPT_DIR"
+
 
 # ----------------------------------------------------
 # 1. Permissions Check (Requires root/sudo)
