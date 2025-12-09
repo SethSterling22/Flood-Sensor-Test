@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 Type=oneshot
-ExecStart=/home/wmobley/Desktop/Flood-Sensor/run.sh start
+ExecStart=/home/wmobley/Desktop/Flood-Sensor/run.sh start Server
 ExecStop=/home/wmobley/Desktop/Flood-Sensor/run.sh stop
 RemainAfterExit=true
 StandardOutput=append:/home/wmobley/Desktop/Flood-Sensor/systemd-flood.log
