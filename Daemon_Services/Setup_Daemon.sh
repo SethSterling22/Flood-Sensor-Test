@@ -40,7 +40,7 @@ fi
 # ----------------------------------------------------
 # 2. Generate and Copy the Service File with Dynamic Path
 # ----------------------------------------------------
-echo "⚙️ Generating and installing $SERVICE_NAME with project path: $PROJECT_DIR_PATH"
+echo "⚙️ Generating and installing $SERVICE_FILE with project path: $PROJECT_DIR_PATH"
 
 SOURCE_FILE="$PROJECT_DIR_PATH/$DAEMON_DIR/$SERVICE_FILE"
 if [ ! -f "$SOURCE_FILE" ]; then
@@ -50,13 +50,13 @@ fi
 
 # Use sed to replace the %PROJECT_DIR% with the actual project
 # directory path where the project is located to maintain portability
-sed "s|%PROJECT_DIR%|$PROJECT_DIR_PATH|g" "$SOURCE_FILE" > "$DEST_PATH/$SERVICE_NAME"
+sed "s|%PROJECT_DIR%|$PROJECT_DIR_PATH|g" "$SOURCE_FILE" > "$DEST_PATH/$SERVICE_FILE"
 
 if [ $? -ne 0 ]; then
     echo "❌ Error generating and copying the service file."
     exit 1
 fi
-echo "✅ Service file ($SERVICE_NAME) installed in $DEST_PATH."
+echo "✅ Service file ($SERVICE_FILE) installed in $DEST_PATH."
 
 # ----------------------------------------------------
 # 3. Reload and Enable
@@ -64,13 +64,13 @@ echo "✅ Service file ($SERVICE_NAME) installed in $DEST_PATH."
 echo "🔄 Reloading Systemd configuration..."
 systemctl daemon-reload
 
-echo "🔌 Enabling $SERVICE_NAME service for automatic startup..."
-systemctl enable "$SERVICE_NAME"
+echo "🔌 Enabling $SERVICE_FILE service for automatic startup..."
+systemctl enable "$SERVICE_FILE"
 
-echo "▶️ Starting $SERVICE_NAME service now..."
-systemctl start "$SERVICE_NAME"
+echo "▶️ Starting $SERVICE_FILE service now..."
+systemctl start "$SERVICE_FILE"
 
-echo "🎉 Installation complete. Check status with: sudo systemctl status $SERVICE_NAME"
+echo "🎉 Installation complete. Check status with: sudo systemctl status $SERVICE_FILE"
 
 exit 0
 
