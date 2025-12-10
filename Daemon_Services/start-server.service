@@ -1,0 +1,15 @@
+[Unit]
+Description=Flood Sensor Monitoring Service Server
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=%PROJECT_DIR%/run.sh start Server
+ExecStop=%PROJECT_DIR%/run.sh stop
+WorkingDirectory=%PROJECT_DIR% 
+RemainAfterExit=true
+StandardOutput=append:%PROJECT_DIR%/Logs/metrics_receiver.log
+StandardError=append:%PROJECT_DIR%/Logs/metrics_receiver.log
+
+[Install]
+WantedBy=multi-user.target
