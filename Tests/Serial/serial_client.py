@@ -5,7 +5,7 @@ import json
 import sys
 
 # --- Configuration ---
-SERIAL_PORT = '/dev/ttyACM0' # Radio SiK USB Port
+SERIAL_PORT = '/dev/ttyUSB0' # Radio SiK USB Port
 BAUD_RATE = 57600
 SERVER_IP = '127.0.0.1' # Placeholder
 SERVER_PORT = 4040

@@ -7,7 +7,7 @@ import json
 # --- CONFIGURATION ---
 TCP_HOST = '0.0.0.0'
 TCP_PORT = 4040
-SERIAL_PORT = '/dev/ttyACM0'  # USB Radio mounted
+SERIAL_PORT = '/dev/ttyUSB0'  # USB Radio mounted
 BAUD_RATE = 57600
 ACK_MSG = "DATA_RECEIVED"
 
